@@ -16,13 +16,15 @@ import datetime as dt
 import json
 import logging
 import math
+import os
+import pathlib
+import tempfile
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 from kassalapp_mcp.source import LIMIT_PER_MINUTE, SlowDownError
 
 if TYPE_CHECKING:
-    import pathlib
     from collections.abc import Callable
 
     import httpx
@@ -37,6 +39,9 @@ WARN_OWN = 48
 #: How many days of totals are kept.
 KEEP_DAYS = 90
 _HEADER = "x-ratelimit-"
+#: The bridge shows at most this many figures, and this much of ``say``.
+MOST_FIGURES = 8
+SAY_MAX = 120
 
 
 class Quota:
@@ -56,7 +61,8 @@ class Quota:
         self._warned_at: dt.datetime | None = None
         self._days: dict[str, dict[str, int]] = self._load("usage-days.json")
         self._lines = len(self._read("usage.jsonl").splitlines())
-        latest = self._load("status.json")
+        # The full count for the quota command; status.json is only the bridge's short form.
+        latest = self._load("quota.json")
         self._headers = dict(latest.get("headers") or {})
         self._seen_at = _when(latest.get("seen_at"))
         self._until = _when(latest.get("backing_off_until"))
@@ -166,8 +172,47 @@ class Quota:
     def _save(self) -> None:
         if self._dir is None:
             return
-        (self._dir / "usage-days.json").write_text(json.dumps(self._days, indent=1, sort_keys=True))
-        (self._dir / "status.json").write_text(json.dumps(self.status(), indent=1))
+        full = self.status()
+        _replace(self._dir / "usage-days.json", json.dumps(self._days, indent=1, sort_keys=True))
+        _replace(self._dir / "quota.json", json.dumps(full, indent=1))
+        # RULE: the status file is replaced whole never written in place
+        _replace(self._dir / "status.json", json.dumps(self.bridge_status(full), indent=1))
+
+    def bridge_status(self, full: dict[str, Any]) -> dict[str, Any]:
+        """The status in the shape every voice plugin shares: at, ok, say and figures."""
+        figures: dict[str, int] = {}
+        for name, key in (("calls_left", "remaining"), ("calls_per_minute", "limit_per_min")):
+            if full[key] is not None:
+                figures[name] = full[key]
+        figures["calls_last_minute"] = full["calls_last_min"]
+        figures["calls_today"] = full["calls_today"]
+        figures["cache_hits_today"] = full["cache_hits_today"]
+        figures["too_many_today"] = full["429s_today"]
+        waiting = 0
+        if full["backing_off_until"]:
+            waiting = math.ceil(
+                (dt.datetime.fromisoformat(full["backing_off_until"]) - self._now()).total_seconds()
+            )
+            figures["waiting_seconds"] = waiting
+        # A header Kassalapp adds one day, such as a daily limit, shows as a figure of its own.
+        for header, value in sorted(full["headers"].items()):
+            name = "ratelimit_" + header.removeprefix(_HEADER).replace("-", "_")
+            if header not in (_HEADER + "limit", _HEADER + "remaining") and value.isdigit():
+                figures.setdefault(name[:32], int(value))
+        left, limit = full["remaining"], full["limit_per_min"]
+        if full["level"] == "backing_off":
+            say = f"Waiting {waiting} s, as Kassalapp asked"
+        elif left is None or limit is None:
+            calls = full["calls_today"]
+            say = f"{calls} call{'' if calls == 1 else 's'} today; Kassalapp has not said how many are left"
+        else:
+            say = f"{'Low: ' if full['level'] == 'warn' else ''}{left} of {limit} calls left this minute"
+        return {
+            "at": (self._seen_at or self._now()).isoformat(),
+            "ok": full["level"] == "ok",
+            "say": say[:SAY_MAX],
+            "figures": dict(list(figures.items())[:MOST_FIGURES]),
+        }
 
     def _read(self, name: str) -> str:
         if self._dir is None:
@@ -183,6 +228,18 @@ class Quota:
         except ValueError:
             return {}
         return loaded if isinstance(loaded, dict) else {}
+
+
+def _replace(path: pathlib.Path, text: str) -> None:
+    """Write ``path`` whole, so a reader never sees half a file."""
+    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        with os.fdopen(handle, "w") as out:
+            out.write(text)
+        pathlib.Path(temporary).replace(path)
+    except BaseException:
+        pathlib.Path(temporary).unlink(missing_ok=True)
+        raise
 
 
 def _next_minute(now: dt.datetime) -> dt.datetime:
