@@ -7,17 +7,25 @@ what is said) lives in the tools, so another price source can share them.
 from __future__ import annotations
 
 import datetime as dt
+import logging
+import pathlib
 from dataclasses import dataclass
 from decimal import Decimal
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    import pathlib
+    from collections.abc import Callable
 
     import httpx
 
 BASE_URL = "https://kassal.app/api/v1"
+# The HTTP library logs every address it calls, and those hold the search words,
+# which are the user's shopping. Only its warnings are let through.
+for _library in ("httpx", "httpcore"):
+    # RULE: search words are never logged
+    logging.getLogger(_library).setLevel(logging.WARNING)
+
 #: Seconds one call may take. The voice gives up on a tool after about 15.
 TIMEOUT = 5.0
 #: Kassalapp refuses a search shorter than this.
@@ -86,10 +94,10 @@ class KassalappSource:
 
     name = "kassalapp"
 
-    def __init__(self, client: httpx.Client, key_file: pathlib.Path) -> None:
-        """Use ``client`` for calls, with the key read from ``key_file`` on each call."""
+    def __init__(self, client: httpx.Client, key: pathlib.Path | Callable[[], str]) -> None:
+        """Use ``client`` for calls, with the key read on each call from a file or a function."""
         self._client = client
-        self._key_file = key_file
+        self._key = key
 
     def find(self, words: str) -> list[Product]:
         """The products the spoken words could mean."""
@@ -127,13 +135,10 @@ class KassalappSource:
         return found
 
     def _headers(self) -> dict[str, str]:
-        try:
-            key = self._key_file.read_text().strip()
-        except FileNotFoundError:
-            key = ""
+        key = _read_key(self._key)
         # RULE: without a key nothing is sent
         if not key:
-            raise NotSetUpError(str(self._key_file))
+            raise NotSetUpError
         return {"Authorization": f"Bearer {key}", "Accept": "application/json"}
 
     def _get(self, path: str, params: dict[str, str]) -> dict[str, Any]:
@@ -141,6 +146,15 @@ class KassalappSource:
 
     def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         return _checked(self._client.post(path, json=body, headers=self._headers(), timeout=TIMEOUT))
+
+
+def _read_key(key: pathlib.Path | Callable[[], str]) -> str:
+    if not isinstance(key, pathlib.Path):
+        return key().strip()
+    try:
+        return key.read_text().strip()
+    except FileNotFoundError:
+        return ""
 
 
 def _checked(response: httpx.Response) -> dict[str, Any]:

@@ -38,3 +38,15 @@ name = "a price older than fourteen days is never called current"
 file = "src/kassalapp_mcp/answers.py"
 find = 'current = sorted\(\(p for p in prices if self._current\(p\)\), key=lambda p: p.price\)'
 replace = 'current = sorted((p for p in prices if p.seen_at is not None), key=lambda p: p.price)'
+
+[[rule]]
+name = "every tool answers with a sentence even when it fails"
+file = "src/kassalapp_mcp/server.py"
+find = 'except httpx.TransportError:'
+replace = 'except ZeroDivisionError:'
+
+[[rule]]
+name = "search words are never logged"
+file = "src/kassalapp_mcp/source.py"
+find = 'logging.getLogger\(_library\).setLevel\(logging.WARNING\)'
+replace = 'logging.getLogger(_library).setLevel(logging.NOTSET)'
