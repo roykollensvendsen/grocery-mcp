@@ -26,12 +26,39 @@ A voice session starts it as an MCP server over stdio:
 
 ```console
 $ kassalapp-mcp serve --help
-usage: kassalapp-mcp serve [-h] [--simulate] [--key-file KEY_FILE]
+usage: kassalapp-mcp serve [-h] [--simulate] [--key-file KEY_FILE] [--state-dir STATE_DIR]
 
 options:
-  -h, --help           show this help message and exit
-  --simulate           answer from made-up prices
-  --key-file KEY_FILE  the Kassalapp key (default ~/.config/kassalapp-mcp/key)
+  -h, --help            show this help message and exit
+  --simulate            answer from made-up prices
+  --key-file KEY_FILE   the Kassalapp key (default ~/.config/kassalapp-mcp/key)
+  --state-dir STATE_DIR
+                        the cache and call counts (default ~/.local/state/kassalapp-mcp)
+```
+
+The same question twice within six hours costs one call, not two, because
+Kassalapp updates its prices once a day. The cache stays on your machine:
+Kassalapp's terms forbid publishing its prices.
+
+The free plan allows 60 calls a minute. The plugin counts its calls and stops
+when Kassalapp says the minute's calls are used up. Then it answers from the
+cache, or asks you to try again in a minute. Its log of calls holds no search
+words and no barcodes. To see the count, here from a folder that has none:
+
+```console
+$ kassalapp-mcp quota --state-dir /nonexistent/kassalapp-mcp
+{
+  "limit_per_min": null,
+  "remaining": null,
+  "seen_at": null,
+  "calls_last_min": 0,
+  "calls_today": 0,
+  "cache_hits_today": 0,
+  "429s_today": 0,
+  "level": "ok",
+  "backing_off_until": null,
+  "headers": {}
+}
 ```
 
 ## The gates

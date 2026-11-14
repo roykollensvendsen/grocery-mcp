@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 
     import httpx
 
+    from kassalapp_mcp.quota import Quota
+
 BASE_URL = "https://kassal.app/api/v1"
 # The HTTP library logs every address it calls, and those hold the search words,
 # which are the user's shopping. Only its warnings are let through.
@@ -32,6 +34,8 @@ TIMEOUT = 5.0
 MIN_SEARCH = 3
 #: Kassalapp's limit on barcodes in one bulk price call.
 MAX_BULK = 100
+#: Kassalapp's free plan: calls a minute, per account. Read on kassal.app/api, 2026-11-14.
+LIMIT_PER_MINUTE = 60
 
 
 @dataclass(frozen=True)
@@ -94,10 +98,16 @@ class KassalappSource:
 
     name = "kassalapp"
 
-    def __init__(self, client: httpx.Client, key: pathlib.Path | Callable[[], str]) -> None:
-        """Use ``client`` for calls, with the key read on each call from a file or a function."""
+    def __init__(
+        self, client: httpx.Client, key: pathlib.Path | Callable[[], str], quota: Quota | None = None
+    ) -> None:
+        """Use ``client`` for calls, with the key read on each call from a file or a function.
+
+        ``quota``, when given, may refuse a call before it is sent, and counts each one sent.
+        """
         self._client = client
         self._key = key
+        self._quota = quota
 
     def find(self, words: str) -> list[Product]:
         """The products the spoken words could mean."""
@@ -142,10 +152,26 @@ class KassalappSource:
         return {"Authorization": f"Bearer {key}", "Accept": "application/json"}
 
     def _get(self, path: str, params: dict[str, str]) -> dict[str, Any]:
-        return _checked(self._client.get(path, params=params, headers=self._headers(), timeout=TIMEOUT))
+        headers = self._headers()
+        return self._counted(
+            path, lambda: self._client.get(path, params=params, headers=headers, timeout=TIMEOUT)
+        )
 
     def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
-        return _checked(self._client.post(path, json=body, headers=self._headers(), timeout=TIMEOUT))
+        headers = self._headers()
+        return self._counted(
+            path, lambda: self._client.post(path, json=body, headers=headers, timeout=TIMEOUT)
+        )
+
+    def _counted(self, path: str, send: Callable[[], httpx.Response]) -> dict[str, Any]:
+        """Send one call, if the quota allows it, and count it by ``path``, a template with no words."""
+        if self._quota is not None:
+            self._quota.before_call()
+        response = send()
+        if self._quota is not None:
+            # RULE: the usage log never holds a search word or barcode
+            self._quota.after_call(path, response)
+        return _checked(response)
 
 
 def _read_key(key: pathlib.Path | Callable[[], str]) -> str:
