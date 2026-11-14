@@ -1,0 +1,6 @@
+#!/bin/sh
+# Refuse a commit that would publish where the owner shops or lives. This is a
+# convenience, not the gate: --no-verify skips it, and CI scans every commit.
+# It never reads the Kassalapp key; see CONTRIBUTING.md for the check that does.
+root="$(git rev-parse --show-toplevel)"
+exec python3 "$root/scripts/private_data_scan.py"
