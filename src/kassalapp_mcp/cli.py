@@ -11,6 +11,7 @@ import sys
 import httpx
 
 from kassalapp_mcp.answers import PriceAnswers
+from kassalapp_mcp.cache import CachedSource
 from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp
 from kassalapp_mcp.source import BASE_URL, KassalappSource
 
@@ -19,15 +20,21 @@ from kassalapp_mcp.source import BASE_URL, KassalappSource
 COMMANDS: tuple[str, ...] = ("serve", "price")
 #: Where the user's own Kassalapp key is kept, readable by them alone.
 KEY_FILE = pathlib.Path("~/.config/kassalapp-mcp/key")
+#: Where the cache is kept: on the user's machine, outside any repository.
+STATE_DIR = pathlib.Path("~/.local/state/kassalapp-mcp")
 
 
 def _answers(*, simulate: bool, key_file: str | None) -> PriceAnswers:
+    now = dt.datetime.now().astimezone
     if simulate:
-        source = KassalappSource(FakeKassalapp().client(), lambda: FAKE_KEY)
-    else:
-        key = pathlib.Path(key_file).expanduser() if key_file else KEY_FILE.expanduser()
-        source = KassalappSource(httpx.Client(base_url=BASE_URL), key)
-    return PriceAnswers(source, today=dt.date.today)
+        # The simulation keeps its cache in memory, so it leaves nothing behind.
+        fake = KassalappSource(FakeKassalapp().client(), lambda: FAKE_KEY)
+        return PriceAnswers(CachedSource(fake, ":memory:", now=now), today=dt.date.today)
+    key = pathlib.Path(key_file).expanduser() if key_file else KEY_FILE.expanduser()
+    state = STATE_DIR.expanduser()
+    state.mkdir(mode=0o700, parents=True, exist_ok=True)
+    real = KassalappSource(httpx.Client(base_url=BASE_URL), key)
+    return PriceAnswers(CachedSource(real, state / "cache.sqlite", now=now), today=dt.date.today)
 
 
 def main(argv: list[str] | None = None) -> int:

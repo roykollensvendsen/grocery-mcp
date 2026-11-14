@@ -50,3 +50,15 @@ name = "search words are never logged"
 file = "src/kassalapp_mcp/source.py"
 find = 'logging.getLogger\(_library\).setLevel\(logging.WARNING\)'
 replace = 'logging.getLogger(_library).setLevel(logging.NOTSET)'
+
+[[rule]]
+name = "a cached price is used for six hours"
+file = "src/kassalapp_mcp/cache.py"
+find = 'if row and now < dt.datetime.fromisoformat\(row\[0\]\):'
+replace = 'if False:'
+
+[[rule]]
+name = "a price fetched before nine is held only until ten"
+file = "src/kassalapp_mcp/cache.py"
+find = 'if fetched.timetz\(\).replace\(tzinfo=None\) < UPDATE_STARTS:'
+replace = 'if False:'
