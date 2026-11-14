@@ -80,3 +80,9 @@ name = "the usage log never holds a search word or barcode"
 file = "src/kassalapp_mcp/source.py"
 find = 'self._quota.after_call\(path, response\)'
 replace = 'self._quota.after_call(str(response.request.url), response)'
+
+[[rule]]
+name = "a stale price is never the cheapest"
+file = "src/kassalapp_mcp/answers.py"
+find = 'current = sorted\(\(p for p in prices if self._current\(p\)\), key=lambda p: \(p.price, p.chain_name\)\)'
+replace = 'current = sorted((p for p in prices if p.seen_at is not None), key=lambda p: (p.price, p.chain_name))'

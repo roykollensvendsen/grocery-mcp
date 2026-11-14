@@ -34,6 +34,12 @@ PRICE_DESCRIPTION = (
     "'chain' is a chain's name, such as 'Meny' or 'Joker'; omit it for every chain."
 )
 
+CHEAPEST_DESCRIPTION = (
+    "Which chain is cheapest?\n"
+    "Ranks the chains by their current price from Kassalapp; a price unchecked for 14 days never counts. "
+    "'product' is the words the person said, such as 'kaffe' or 'Tine lettmelk 1 liter'."
+)
+
 
 def build_server(answers: PriceAnswers, *, simulated: bool = False) -> MCPServer[Any]:
     """The MCP server with the price tool, answering from ``answers``."""
@@ -46,6 +52,11 @@ def build_server(answers: PriceAnswers, *, simulated: bool = False) -> MCPServer
     @_guarded(simulated=simulated)
     def grocery_price(product: str, chain: str | None = None) -> dict[str, Any]:
         return answers.grocery_price(product, chain)
+
+    @server.tool(annotations=ToolAnnotations(read_only_hint=True), description=CHEAPEST_DESCRIPTION)
+    @_guarded(simulated=simulated)
+    def grocery_cheapest(product: str) -> dict[str, Any]:
+        return answers.grocery_cheapest(product)
 
     return server
 

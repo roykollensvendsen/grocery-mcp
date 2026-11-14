@@ -47,8 +47,22 @@ class PriceAnswers:
 
     def grocery_price(self, product: str, chain: str | None = None) -> dict[str, Any]:
         """The price of a product at one chain, or at every chain that has it."""
+
+        def build(only: Product, prices: list[ItemPrice]) -> dict[str, Any]:
+            return self._one_chain(only, prices, chain) if chain else self._every_chain(only, prices)
+
+        return self._answered(product, build)
+
+    def grocery_cheapest(self, product: str) -> dict[str, Any]:
+        """Which chain is cheapest for a product, among the current prices."""
+        return self._answered(product, self._cheapest)
+
+    def _answered(
+        self, words: str, build: Callable[[Product, list[ItemPrice]], dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Find the one product the words mean, then let ``build`` answer from its prices."""
         try:
-            return self._price(product, chain)
+            return self._resolved(words, build)
         except NotSetUpError:
             return _refused("not_set_up", NOT_SET_UP)
         except KeyRefusedError:
@@ -58,7 +72,9 @@ class PriceAnswers:
         except SearchTooShortError:
             return _refused("too_short", TOO_SHORT)
 
-    def _price(self, words: str, chain: str | None) -> dict[str, Any]:
+    def _resolved(
+        self, words: str, build: Callable[[Product, list[ItemPrice]], dict[str, Any]]
+    ) -> dict[str, Any]:
         found = self._source.find(words)
         if not found:
             return _refused("not_found", f"Kassalapp has no product called {words}.")
@@ -72,12 +88,32 @@ class PriceAnswers:
                 "choices": choices,
             }
         [only] = found
-        prices = self._source.prices([only])
-        answer = self._one_chain(only, prices, chain) if chain else self._every_chain(only, prices)
+        answer = build(only, self._source.prices([only]))
         if not self._said_per_chain:
             answer["say"] += " " + PER_CHAIN
             self._said_per_chain = True
         return answer
+
+    def _cheapest(self, product: Product, prices: list[ItemPrice]) -> dict[str, Any]:
+        # RULE: a stale price is never the cheapest
+        current = sorted((p for p in prices if self._current(p)), key=lambda p: (p.price, p.chain_name))
+        if not current:
+            say = f"Kassalapp has no current price for {product.name} at any chain. {NOT_FETCHED_SAID}"
+            return _answer("no_current_price", say, [], success=False)
+        best = current[0]
+        if len(current) == 1:
+            say = f"Only {best.chain_name} has a current price for {product.name}:"
+            say += f" {best.price:.2f}, {self._checked(best)}."
+            return _answer("cheapest", f"{say} {NOT_FETCHED_SAID}", current)
+        tied = [p for p in current if p.price == best.price]
+        if len(tied) > 1:
+            chains = _both_and([p.chain_name for p in tied[:MOST_CHAINS]])
+            say = f"{product.name} costs the same, {best.price:.2f}, at {chains}, {self._checked(best)}."
+            return _answer("cheapest", f"{say} {NOT_FETCHED_SAID}", current)
+        after = current[1]
+        say = f"{product.name} is cheapest at {best.chain_name}, {best.price:.2f}, {self._checked(best)}."
+        say += f" Then {after.chain_name} at {after.price:.2f}, {self._checked(after)}."
+        return _answer("cheapest", f"{say} {NOT_FETCHED_SAID}", current)
 
     def _one_chain(self, product: Product, prices: list[ItemPrice], chain: str) -> dict[str, Any]:
         spoken = chain.strip().lower()
@@ -159,3 +195,7 @@ def _either(names: list[str]) -> str:
 
 def _both(parts: list[str]) -> str:
     return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + ", and " + parts[-1]
+
+
+def _both_and(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]

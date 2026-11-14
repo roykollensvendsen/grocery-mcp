@@ -2,8 +2,9 @@
 
 Grocery prices per chain from Kassalapp, by voice: an MCP server and claude-voice plugin.
 
-It answers one question, by voice: what a grocery costs, per chain, and how
-old that price is. It only reads prices and never buys anything.
+It answers two questions, by voice: what a grocery costs at each chain, and
+where it is cheapest. Every answer says how old the price is. It only reads
+prices and never buys anything.
 
 Kassalapp has no current prices from Kiwi, REMA 1000 or Coop, and the plugin
 says so rather than give an old price as if it were new. Prices are per chain,
