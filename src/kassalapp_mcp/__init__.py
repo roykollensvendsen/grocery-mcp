@@ -1,0 +1,1 @@
+"""The kassalapp-mcp package."""
