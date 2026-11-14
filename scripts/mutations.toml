@@ -14,3 +14,15 @@
 # file = "src/kassalapp_mcp/somewhere.py"
 # find = 'if limit_exceeded:'
 # replace = 'if False:'
+
+[[rule]]
+name = "a search shorter than kassalapp allows is never sent"
+file = "src/kassalapp_mcp/source.py"
+find = 'if len\(words\) < MIN_SEARCH:'
+replace = 'if False:'
+
+[[rule]]
+name = "without a key nothing is sent"
+file = "src/kassalapp_mcp/source.py"
+find = 'if not key:'
+replace = 'if False:'
