@@ -28,9 +28,8 @@ def _call(server, name, arguments):
     return asyncio.run(server.call_tool(name, arguments)).structured_content
 
 
-def test_the_voice_sees_one_price_tool_marked_read_only():
+def test_the_voice_sees_the_price_tool_marked_read_only():
     tools = _tools(_server())
-    assert list(tools) == ["grocery_price"]
     assert tools["grocery_price"].annotations.read_only_hint is True
 
 
@@ -75,3 +74,15 @@ def test_search_words_are_never_logged(caplog):
     _call(_server(), "grocery_price", {"product": "fjellmelk lett"})
     assert "fjellmelk" not in caplog.text
     assert "7000000000017" not in caplog.text
+
+
+def test_the_voice_sees_the_cheapest_tool_marked_read_only():
+    tool = _tools(_server())["grocery_cheapest"]
+    assert tool.annotations.read_only_hint is True
+    assert len(tool.description.splitlines()[0]) <= FIRST_LINE_MAX
+
+
+def test_the_two_tool_names_do_not_sound_alike():
+    names = sorted(_tools(_server()))
+    assert names == ["grocery_cheapest", "grocery_price"]
+    assert names[0].split("_")[1][:3] != names[1].split("_")[1][:3]
