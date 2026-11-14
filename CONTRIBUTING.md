@@ -25,8 +25,20 @@ because they are the same lines:
 ```
 uv run ruff check . && uv run ruff format --check .
 uv run mypy src
+python scripts/private_data_scan.py --tracked --history
 uv run pytest -q --cov
 committed --no-merge-commit origin/main..HEAD
+```
+
+The private-data scan refuses a home-network address, a street address and
+exact coordinates. On your own machine it also refuses each word in
+`~/.config/kassalapp-mcp/private.toml`, a list kept outside the repository,
+such as your shops' own names. Before the first push, run it once with your key
+as well. It is the one check that reads the key, so no hook does it for you:
+
+<!-- not run: it reads the owner's own key, which no test may do -->
+```
+python3 scripts/private_data_scan.py --history --key-file ~/.config/kassalapp-mcp/key
 ```
 
 Run them after the last edit, not before it. A file edited after the format
