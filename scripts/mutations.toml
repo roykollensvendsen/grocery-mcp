@@ -62,3 +62,21 @@ name = "a price fetched before nine is held only until ten"
 file = "src/kassalapp_mcp/cache.py"
 find = 'if fetched.timetz\(\).replace\(tzinfo=None\) < UPDATE_STARTS:'
 replace = 'if False:'
+
+[[rule]]
+name = "a 429 stops calls until retry after passes"
+file = "src/kassalapp_mcp/quota.py"
+find = 'if self._until is not None and now < self._until:'
+replace = 'if False:'
+
+[[rule]]
+name = "the level warns at twelve remaining"
+file = "src/kassalapp_mcp/quota.py"
+find = 'by_header = remaining is not None and remaining <= limit \* WARN_SHARE'
+replace = 'by_header = remaining is not None and remaining < limit * WARN_SHARE'
+
+[[rule]]
+name = "the usage log never holds a search word or barcode"
+file = "src/kassalapp_mcp/source.py"
+find = 'self._quota.after_call\(path, response\)'
+replace = 'self._quota.after_call(str(response.request.url), response)'

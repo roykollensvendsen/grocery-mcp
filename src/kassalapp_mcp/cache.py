@@ -19,7 +19,7 @@ import threading
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from kassalapp_mcp.source import ItemPrice, Product
+from kassalapp_mcp.source import ItemPrice, Product, SlowDownError
 
 if TYPE_CHECKING:
     import pathlib
@@ -53,11 +53,18 @@ def kept_until(fetched: dt.datetime) -> dt.datetime:
 class CachedSource:
     """A price source that remembers what it was told."""
 
-    def __init__(self, inner: PriceSource, path: pathlib.Path | str, now: Callable[[], dt.datetime]) -> None:
-        """Ask ``inner`` only for what the cache at ``path`` lacks."""
+    def __init__(
+        self,
+        inner: PriceSource,
+        path: pathlib.Path | str,
+        now: Callable[[], dt.datetime],
+        on_hit: Callable[[], None] = lambda: None,
+    ) -> None:
+        """Ask ``inner`` only for what the cache at ``path`` lacks; call ``on_hit`` when it lacks nothing."""
         self.name = inner.name
         self._inner = inner
         self._now = now
+        self._on_hit = on_hit
         self._lock = threading.Lock()
         # The MCP library may run a tool on a worker thread; the lock keeps one writer at a time.
         self._db = sqlite3.connect(str(path), check_same_thread=False)
@@ -73,6 +80,7 @@ class CachedSource:
         with self._lock:
             row = self._db.execute("SELECT ean, name FROM words WHERE words = ?", (key,)).fetchone()
         if row:
+            self._on_hit()
             return [Product(row[0], row[1])]
         found = self._inner.find(words)
         if len(found) == 1:
@@ -85,6 +93,7 @@ class CachedSource:
         now = self._now()
         kept: list[ItemPrice] = []
         missing: list[Product] = []
+        old: dict[str, list[ItemPrice]] = {}
         for product in products:
             with self._lock:
                 row = self._db.execute(
@@ -95,9 +104,19 @@ class CachedSource:
                 kept.extend(_loaded(product, row[1]))
             else:
                 missing.append(product)
+                if row:
+                    old[product.ean] = _loaded(product, row[1])
         if not missing:
+            self._on_hit()
             return kept
-        fetched = self._inner.prices(missing)
+        try:
+            fetched = self._inner.prices(missing)
+        except SlowDownError:
+            # While Kassalapp asks us to wait, an old answer still says its own age.
+            if any(p.ean not in old for p in missing):
+                raise
+            self._on_hit()
+            return kept + [price for p in missing for price in old[p.ean]]
         until = kept_until(now).isoformat()
         with self._lock, self._db:
             for product in missing:

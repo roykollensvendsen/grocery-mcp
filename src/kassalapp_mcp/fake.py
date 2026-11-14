@@ -19,7 +19,7 @@ from typing import Any
 
 import httpx
 
-from kassalapp_mcp.source import BASE_URL, MAX_BULK, MIN_SEARCH
+from kassalapp_mcp.source import BASE_URL, LIMIT_PER_MINUTE, MAX_BULK, MIN_SEARCH
 
 #: The key the fake accepts. Any other gets 401.
 FAKE_KEY = "fake-key"
@@ -62,6 +62,12 @@ class FakeKassalapp:
     products: list[FakeProduct] = field(default_factory=_catalogue)
     #: Set to a number of seconds to answer the next calls with 429.
     retry_after: int | None = None
+    #: False sends that 429 without a Retry-After header.
+    retry_after_header: bool = True
+    #: Calls left this minute, as the headers say; None leaves the headers out.
+    remaining: int | None = LIMIT_PER_MINUTE
+    #: Headers the real service might add one day, such as a daily limit.
+    extra_headers: dict[str, str] = field(default_factory=dict)
     requests: list[httpx.Request] = field(default_factory=list)
 
     def transport(self) -> httpx.MockTransport:
@@ -73,11 +79,21 @@ class FakeKassalapp:
         return httpx.Client(base_url=BASE_URL, transport=self.transport())
 
     def _handle(self, request: httpx.Request) -> httpx.Response:
+        response = self._answer(request)
+        if self.remaining is not None:
+            self.remaining = max(0, self.remaining - 1)
+            response.headers["X-RateLimit-Limit"] = str(LIMIT_PER_MINUTE)
+            response.headers["X-RateLimit-Remaining"] = str(self.remaining)
+        response.headers.update(self.extra_headers)
+        return response
+
+    def _answer(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         if request.headers.get("authorization") != f"Bearer {FAKE_KEY}":
             return httpx.Response(401, json={"message": "Unauthenticated."})
         if self.retry_after is not None:
-            return httpx.Response(429, headers={"Retry-After": str(self.retry_after)})
+            wait = {"Retry-After": str(self.retry_after)} if self.retry_after_header else {}
+            return httpx.Response(429, headers=wait)
         path = request.url.path.removeprefix(httpx.URL(BASE_URL).path)
         if request.method == "GET" and path == "/products":
             return self._search(request.url.params.get("search", ""))
