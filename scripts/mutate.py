@@ -28,6 +28,7 @@ import os
 import pathlib
 import re
 import secrets
+import shlex
 import shutil
 import signal
 import stat
@@ -254,8 +255,12 @@ def sweep() -> None:
     A copy the quality check made is never run in again, so only another checkout's
     run comes by to sweep it. A run still going holds a lock, and is left alone.
     """
+    if os.path.lexists(MUTATE_TMP):
+        check_ours(MUTATE_TMP)  # a link at its name is otherwise passed over, and used later
     # RULE: a dead run's folder is swept in any checkout
     for checkout in _checkouts():
+        # RULE: a sweep goes only into folders that are really ours
+        check_ours(checkout)
         # RULE: a killed run's temporary files are swept at the next start
         for left in list(checkout.iterdir()):
             if _dead(left):
@@ -264,36 +269,45 @@ def sweep() -> None:
             checkout.rmdir()
 
 
-def _not_ours(why: str) -> str:
+def _not_ours(folder: pathlib.Path, why: str, fix: str) -> str:
     return (
-        f"{MUTATE_TMP} {why}. Its name is easy to guess in a shared /tmp, so this run will not"
-        " use it: look at what is there, remove it if it is not yours, and run again."
+        f"{folder} {why}. Its name is easy to guess in a shared /tmp, so this run will not use it."
+        f" {fix}, then run again."
     )
 
 
-def own_folder() -> None:
-    """Make this checkout's folder of runs, or check the one there is really this user's alone.
+def check_ours(folder: pathlib.Path) -> None:
+    """Stop unless `folder` is a real folder of this user's that no one else may enter.
 
-    Its name is easy to guess, in a /tmp everyone shares. Only a real folder made by this
-    user, which no one else may enter, is used, so nothing planted there first can steer
-    where a run's files go or what a sweep removes.
+    A folder of runs has a name anyone can guess, in a /tmp everyone shares. Nothing
+    planted there first may steer where a run's files go, or what a sweep removes.
     """
-    MUTATE_TMP.parent.mkdir(parents=True, exist_ok=True)
-    with contextlib.suppress(FileExistsError):
-        MUTATE_TMP.mkdir(mode=0o700)
+    named = shlex.quote(str(folder))
+    look = f"Look at it with: ls -ld {named}. If it is not yours, remove it with: rm -r -- {named}"
     try:
-        fd = os.open(MUTATE_TMP, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     except OSError as error:  # a link, or something else, planted at the name
-        raise SystemExit(_not_ours(f"is not a folder of yours ({error.strerror})")) from None
+        raise SystemExit(_not_ours(folder, f"is not a folder of yours ({error.strerror})", look)) from None
     try:
         held = os.fstat(fd)
     finally:
         os.close(fd)
-    # RULE: a run trusts its folder only when it is really ours
     if not stat.S_ISDIR(held.st_mode) or held.st_uid != os.getuid():
-        raise SystemExit(_not_ours("is not a folder of yours"))
+        raise SystemExit(_not_ours(folder, "is not a folder of yours", look))
     if held.st_mode & 0o077:
-        raise SystemExit(_not_ours(f"is one others may enter (mode {stat.S_IMODE(held.st_mode):o})"))
+        mode = stat.S_IMODE(held.st_mode)
+        raise SystemExit(
+            _not_ours(folder, f"is one others may enter (mode {mode:o})", f"Close it with: chmod 700 {named}")
+        )
+
+
+def own_folder() -> None:
+    """Make this checkout's folder of runs, for this user alone, or check the one there is."""
+    MUTATE_TMP.parent.mkdir(parents=True, exist_ok=True)
+    with contextlib.suppress(FileExistsError):
+        MUTATE_TMP.mkdir(mode=0o700)
+    # RULE: a run trusts its folder only when it is really ours
+    check_ours(MUTATE_TMP)
 
 
 def start_run_folder() -> tuple[pathlib.Path, int]:

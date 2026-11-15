@@ -172,6 +172,7 @@ def _run_folder(parent, name="run-left-by-a-killed-run", *, locked=True):
     (folder / "basetemp" / "inside.txt").write_text("x", encoding="utf-8")
     if locked:
         (folder / ".lock").touch()
+    parent.chmod(0o700)  # as a real run makes it, for its user alone
     return folder
 
 
@@ -285,6 +286,7 @@ def test_a_claimed_folder_with_no_lock_yet_is_never_swept(tmp_path, monkeypatch)
     monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
     claimed = mutate.MUTATE_TMP / "run-000000000001"
     claimed.mkdir(parents=True)
+    mutate.MUTATE_TMP.chmod(0o700)
     mutate.sweep()
     assert claimed.is_dir()
     assert not (claimed / mutate.LOCK).exists(), "a sweep made a lock in another run's folder"
@@ -307,6 +309,7 @@ def test_a_folder_another_sweep_removed_first_is_passed_over(tmp_path, monkeypat
     monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
     gone = mutate.MUTATE_TMP / "run-000000000003"
     gone.mkdir(parents=True)
+    mutate.MUTATE_TMP.chmod(0o700)
     real_open = mutate.os.open
 
     def open_after_the_other_sweep(path, *args, **kwargs):
@@ -336,7 +339,8 @@ def test_a_run_trusts_its_folder_only_when_it_is_really_ours(tmp_path, monkeypat
         place.write_text("x", encoding="utf-8")
     with pytest.raises(SystemExit, match=str(place)) as refused:
         mutate.start_run_folder()
-    assert "remove it if it is not yours" in str(refused.value)
+    fix = f"chmod 700 {place}" if planted == "open to others" else f"rm -r -- {place}"
+    assert fix in str(refused.value), "the refusal gives the command that fixes it"
     assert not any(p.name.startswith(("run-", "starting-")) for p in tmp_path.rglob("*"))
 
 
@@ -383,3 +387,27 @@ def test_a_new_run_s_lock_is_always_one_it_made(tmp_path, monkeypatch):
     monkeypatch.setattr(mutate.tempfile, "mkdtemp", with_a_lock_already_there)
     with pytest.raises(FileExistsError):
         mutate.start_run_folder()
+
+
+def test_a_sweep_goes_only_into_folders_that_are_really_ours(tmp_path, monkeypatch):
+    """Another checkout's folder of runs that others may enter stops the run, untouched."""
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    other = tmp_path / "kassalapp-mcp-mutate-0000bbbb"
+    left = _run_folder(other, "run-000000000004")
+    other.chmod(0o755)
+    with pytest.raises(SystemExit, match=f"chmod 700 {other}"):
+        mutate.sweep()
+    assert left.is_dir()
+
+
+def test_a_sweep_stops_at_a_link_in_place_of_the_run_s_folder(tmp_path, monkeypatch):
+    mutate = _mutate()
+    place = tmp_path / "kassalapp-mcp-mutate-0000aaaa"
+    monkeypatch.setattr(mutate, "MUTATE_TMP", place)
+    elsewhere = tmp_path / "elsewhere"
+    left = _run_folder(elsewhere, "run-000000000005")
+    place.symlink_to(elsewhere)
+    with pytest.raises(SystemExit, match=f"rm -r -- {place}"):
+        mutate.sweep()
+    assert left.is_dir()

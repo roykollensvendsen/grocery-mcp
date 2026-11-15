@@ -1,0 +1,5 @@
+[[rule]]
+name = "a sweep goes only into folders that are really ours"
+file = "scripts/mutate.py"
+find = '^        check_ours\(checkout\)$'
+replace = 'pass'
