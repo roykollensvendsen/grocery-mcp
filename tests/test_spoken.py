@@ -7,7 +7,7 @@ from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp, FakeProduct
 from kassalapp_mcp.source import KassalappSource
 
 TODAY = dt.date(2026, 11, 14)
-LONG = "Fjellmelk ekstra\nlett\t1 l " + "med en svært lang beskrivelse " * 6 + "\x07slutt"
+LONG = "Fjellmelk\x07 ekstra\nlett\t1 l " + "med en svært lang beskrivelse " * 6 + "slutt"
 
 
 def _answers(fake):
