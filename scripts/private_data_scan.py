@@ -57,12 +57,14 @@ class BrokenListError(ValueError):
 def private_values(words: pathlib.Path, key: pathlib.Path | None) -> set[str]:
     """The owner's private words, and their key, from files outside the repository."""
     out: set[str] = set()
-    if words.is_file():
+    # Anything in the list's place counts as a list: only a missing one means "no list".
+    # RULE: a broken private list refuses the commit never skips the check
+    if words.exists():
         try:
             listed = tomllib.loads(words.read_text(encoding="utf-8")).get("words", [])
-        except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
             # The parser's own message is left out: it may quote a word from the list.
-            message = f"{words.name} can't be read as TOML"
+            message = f"{words.name} can't be read as a TOML file"
             raise BrokenListError(message) from error
         if not isinstance(listed, list):
             message = f"{words.name} must hold words = [...], a list of words"

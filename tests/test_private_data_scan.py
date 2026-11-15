@@ -1,7 +1,10 @@
 """Nothing committed says where the owner shops or lives, or holds their key."""
 
+import os
 import pathlib
 import sys
+
+import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "scripts"))
 
@@ -77,3 +80,25 @@ def test_a_private_list_without_a_list_of_words_refuses_the_commit(tmp_path, cap
     words.write_text('words = "Meny Sentrum Nord"\n', encoding="utf-8")
     assert private_data_scan.main(["--tracked", "--words", str(words)]) == 1
     assert "a list of words" in capsys.readouterr().err
+
+
+def test_a_broken_private_list_refuses_the_commit_never_skips_the_check(tmp_path, capsys):
+    # A folder in the list's place must not read as "no list", which would check nothing.
+    words = tmp_path / "private.toml"
+    words.mkdir()
+    assert private_data_scan.main(["--tracked", "--words", str(words)]) == 1
+    assert "private.toml can't be read" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads any file")
+def test_a_private_list_nobody_may_read_refuses_the_commit(tmp_path, capsys):
+    words = tmp_path / "private.toml"
+    words.write_text('words = ["Meny Sentrum Nord"]\n', encoding="utf-8")
+    words.chmod(0)
+    try:
+        assert private_data_scan.main(["--tracked", "--words", str(words)]) == 1
+    finally:
+        words.chmod(0o600)
+    said = capsys.readouterr().err
+    assert "private.toml can't be read" in said
+    assert "Traceback" not in said
