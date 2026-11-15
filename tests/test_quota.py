@@ -3,6 +3,7 @@
 import datetime as dt
 import json
 import logging
+import threading
 
 import pytest
 
@@ -231,3 +232,35 @@ def test_the_quota_command_prints_the_status_from_its_folder(tmp_path, capsys):
     status = json.loads(capsys.readouterr().out)
     assert status["level"] == "ok"
     assert status["calls_today"] == 0
+
+
+def test_a_wait_kassalapp_asked_for_survives_a_restart(fake, quota, tmp_path, clock):
+    fake.retry_after = 30
+    with pytest.raises(SlowDownError):
+        _source(fake, quota).prices([LETT])
+    fake.retry_after = None
+    clock.at += dt.timedelta(seconds=10)
+    restarted = Quota(tmp_path, now=clock)
+    sent = len(fake.requests)
+    with pytest.raises(SlowDownError):
+        _source(fake, restarted).prices([LETT])
+    assert len(fake.requests) == sent
+    clock.at += dt.timedelta(seconds=21)
+    _source(fake, restarted).prices([LETT])
+    assert len(fake.requests) == sent + 1
+
+
+def test_calls_counted_from_several_threads_are_all_counted(fake, tmp_path, clock):
+    quota = Quota(tmp_path, now=clock)
+    response = fake.client().post("/products/prices-bulk", json={"eans": [LETT.ean]})
+
+    def count():
+        for _ in range(200):
+            quota.after_call("/products/prices-bulk", response)
+
+    threads = [threading.Thread(target=count) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert quota.status()["calls_today"] == 800
