@@ -142,3 +142,8 @@ def test_every_row_file_in_the_repository_is_where_its_rule_says():
     misfiled = _mutate().misfiled()
     assert not misfiled, "row files out of place: " + "; ".join(misfiled)
     assert not (ROOT / "scripts/mutations.toml").exists(), "the shared table is gone; give each row a file"
+
+
+def test_the_mutation_check_finds_the_same_rule_marks_as_this_test():
+    """Two scans of the same marks, kept apart on purpose: this one stays the independent check."""
+    assert sorted(_mutate().marked()) == sorted(marked_rules())
