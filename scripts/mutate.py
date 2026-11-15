@@ -177,7 +177,9 @@ def _remove(folder: pathlib.Path) -> None:
 #: A run's folder holds its lock file, and the folder its suite's temporary files go in.
 #: The lock sits beside that folder: pytest empties the folder it is given as it starts.
 LOCK = ".lock"
-OPEN_LOCK = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW
+#: A new run makes its lock, and never takes one already there.
+# RULE: a new run s lock is always one it made
+OPEN_LOCK = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
 #: A sweep only opens a lock that is there: one it made would sit in a new run's folder
 #: before that run moves in, and the run's rename onto it would then fail.
 OPEN_THEIR_LOCK = os.O_RDWR | os.O_NOFOLLOW
