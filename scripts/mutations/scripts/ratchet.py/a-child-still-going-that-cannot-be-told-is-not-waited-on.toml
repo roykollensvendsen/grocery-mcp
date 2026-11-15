@@ -1,0 +1,5 @@
+[[rule]]
+name = "a child still going that cannot be told is not waited on"
+file = "scripts/ratchet.py"
+find = '^                if child\.poll\(\) is None:  # gone only if it ended; a live child must be told$'
+replace = 'if False:'

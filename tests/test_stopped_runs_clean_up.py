@@ -488,8 +488,11 @@ time.sleep(60)
 """
 
 
-def _quality_check_with_a_child(tmp_path):
-    """A script that runs the quality check's own way of starting a child, on SLOW_CHILD."""
+def _quality_check_with_a_child(tmp_path, then=""):
+    """A script that runs the quality check's own way of starting a child, on SLOW_CHILD.
+
+    `then` is set-up run before the child starts, as lines of Python using `ratchet`.
+    """
     (tmp_path / "child.py").write_text(SLOW_CHILD, encoding="utf-8")
     script = tmp_path / "quality.py"
     script.write_text(
@@ -499,8 +502,9 @@ def _quality_check_with_a_child(tmp_path):
             ratchet = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(ratchet)
             ratchet.stop_cleanly_when_killed()
-            ratchet._run(sys.executable, {str(tmp_path / "child.py")!r}, {str(tmp_path)!r})
-        """),
+        """)
+        + textwrap.dedent(then)
+        + f"ratchet._run(sys.executable, {str(tmp_path / 'child.py')!r}, {str(tmp_path)!r})\n",
         encoding="utf-8",
     )
     return subprocess.Popen([sys.executable, str(script)])
@@ -531,6 +535,28 @@ def test_the_quality_check_s_child_hears_a_stop_only_through_it(tmp_path):
         _waits_for(lambda: (tmp_path / "child").exists() and (tmp_path / "child").stat().st_size, "no child")
         _, session = (tmp_path / "child").read_text(encoding="utf-8").split()
         assert int(session) != os.getsid(0)
+    finally:
+        running.kill()
+        _stop_child(tmp_path)
+
+
+#: The stop cannot reach the child's group, as when the child shares this session.
+CANNOT_TELL_THE_CHILD = """
+def no_such_group(_pid, _signum):
+    raise ProcessLookupError
+
+ratchet.os.killpg = no_such_group
+"""
+
+
+def test_a_child_still_going_that_cannot_be_told_is_not_waited_on(tmp_path):
+    """Waiting on a child that never heard the stop would hang the quality check for good."""
+    running = _quality_check_with_a_child(tmp_path, CANNOT_TELL_THE_CHILD)
+    try:
+        _waits_for((tmp_path / "child").exists, "the child never started")
+        running.send_signal(signal.SIGTERM)
+        running.wait(timeout=20)
+        assert running.returncode != 0
     finally:
         running.kill()
         _stop_child(tmp_path)
