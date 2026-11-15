@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import contextlib
 import json
 import os
 import re
@@ -309,8 +308,12 @@ def _run(
         try:
             child.wait()
         except BaseException:
-            with contextlib.suppress(ProcessLookupError):
+            try:
                 os.killpg(child.pid, signal.SIGINT)
+            except ProcessLookupError:
+                # RULE: a child still going that cannot be told is not waited on
+                if child.poll() is None:  # gone only if it ended; a live child must be told
+                    raise
             # RULE: the quality check passes a stop to its child and waits
             child.wait()
             raise
