@@ -56,7 +56,7 @@ def test_a_mutation_run_checks_the_package_before_it_measures(tmp_path, monkeypa
     monkeypatch.setattr(mutate, "ROOT", tmp_path)
     monkeypatch.setattr(mutate, "ROWS", tmp_path / "scripts/mutations")
     monkeypatch.setattr(mutate, "RECOVERY", tmp_path / "recovery.json")
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
     monkeypatch.setattr(mutate.sys, "argv", ["mutate.py"])
 
     def refused():

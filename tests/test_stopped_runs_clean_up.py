@@ -221,8 +221,8 @@ def _run_folder(parent, name="run-left-by-a-killed-run", *, locked=True):
 def test_a_dead_run_s_folder_is_swept_in_any_checkout(tmp_path, monkeypatch):
     """A copy the quality check made is never run in again, so another checkout sweeps what it left."""
     mutate = _mutate()
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
-    other = tmp_path / "kassalapp-mcp-mutate-1111bbbb"
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
+    other = tmp_path / "grocery-mcp-mutate-1111bbbb"
     _run_folder(other)
     not_ours = _run_folder(tmp_path / "someone-else-mutate-2222cccc")
     mutate.sweep()
@@ -235,7 +235,7 @@ def test_a_run_still_going_is_never_swept(tmp_path, monkeypatch):
     import fcntl  # noqa: PLC0415
 
     mutate = _mutate()
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
     going = _run_folder(mutate.MUTATE_TMP, "run-still-going")
     held = os.open(going / ".lock", os.O_RDWR | os.O_CREAT, 0o600)
     try:
@@ -251,7 +251,7 @@ def test_a_new_run_s_folder_is_locked_before_it_takes_a_run_s_name(tmp_path, mon
     import fcntl  # noqa: PLC0415
 
     mutate = _mutate()
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
     named_when_locked = []
     real_flock = fcntl.flock
 
@@ -325,7 +325,7 @@ def test_one_test_s_stop_handlers_never_reach_the_next(tmp_path):
 def test_a_claimed_folder_with_no_lock_yet_is_never_swept(tmp_path, monkeypatch):
     """A new run claims its name, then moves its locked folder in; a sweep between must leave it."""
     mutate = _mutate()
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
     claimed = mutate.MUTATE_TMP / "run-000000000001"
     claimed.mkdir(parents=True)
     mutate.MUTATE_TMP.chmod(0o700)
@@ -337,7 +337,7 @@ def test_a_claimed_folder_with_no_lock_yet_is_never_swept(tmp_path, monkeypatch)
 def test_an_hour_old_folder_with_no_lock_is_swept(tmp_path, monkeypatch):
     """Left by a run killed in that instant, or by a run from before runs held locks."""
     mutate = _mutate()
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
     left = _run_folder(mutate.MUTATE_TMP, "run-000000000002", locked=False)
     old = time.time() - mutate.STARTING_SECONDS - 60
     os.utime(left, (old, old))
@@ -348,7 +348,7 @@ def test_an_hour_old_folder_with_no_lock_is_swept(tmp_path, monkeypatch):
 def test_a_folder_another_sweep_removed_first_is_passed_over(tmp_path, monkeypatch):
     """Two runs may sweep at once; the one that comes second finds the folder already gone."""
     mutate = _mutate()
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
     gone = mutate.MUTATE_TMP / "run-000000000003"
     gone.mkdir(parents=True)
     mutate.MUTATE_TMP.chmod(0o700)
@@ -368,7 +368,7 @@ def test_a_folder_another_sweep_removed_first_is_passed_over(tmp_path, monkeypat
 def test_a_run_trusts_its_folder_only_when_it_is_really_ours(tmp_path, monkeypatch, planted):
     """The folder's name is easy to guess in a /tmp everyone shares; what is planted there is refused."""
     mutate = _mutate()
-    place = tmp_path / "kassalapp-mcp-mutate-0000aaaa"
+    place = tmp_path / "grocery-mcp-mutate-0000aaaa"
     monkeypatch.setattr(mutate, "MUTATE_TMP", place)
     if planted == "open to others":
         place.mkdir(mode=0o700)
@@ -388,7 +388,7 @@ def test_a_run_trusts_its_folder_only_when_it_is_really_ours(tmp_path, monkeypat
 
 def test_a_run_s_own_folder_is_made_for_its_user_alone(tmp_path, monkeypatch):
     mutate = _mutate()
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
     folder, lock = mutate.start_run_folder()
     try:
         assert mutate.MUTATE_TMP.stat().st_mode & 0o777 == 0o700
@@ -400,7 +400,7 @@ def test_a_run_s_own_folder_is_made_for_its_user_alone(tmp_path, monkeypatch):
 def test_a_new_run_s_lock_is_always_one_it_made(tmp_path, monkeypatch):
     """A lock file already in place is never taken as a new run's own."""
     mutate = _mutate()
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
     real_mkdtemp = mutate.tempfile.mkdtemp
 
     def with_a_lock_already_there(*args, **kwargs):
@@ -416,8 +416,8 @@ def test_a_new_run_s_lock_is_always_one_it_made(tmp_path, monkeypatch):
 def test_a_sweep_goes_only_into_folders_that_are_really_ours(tmp_path, monkeypatch):
     """Another checkout's folder of runs that others may enter stops the run, untouched."""
     mutate = _mutate()
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
-    other = tmp_path / "kassalapp-mcp-mutate-0000bbbb"
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
+    other = tmp_path / "grocery-mcp-mutate-0000bbbb"
     left = _run_folder(other, "run-000000000004")
     other.chmod(0o755)
     with pytest.raises(SystemExit, match=f"chmod 700 {other}"):
@@ -427,7 +427,7 @@ def test_a_sweep_goes_only_into_folders_that_are_really_ours(tmp_path, monkeypat
 
 def test_a_sweep_stops_at_a_link_in_place_of_the_run_s_folder(tmp_path, monkeypatch):
     mutate = _mutate()
-    place = tmp_path / "kassalapp-mcp-mutate-0000aaaa"
+    place = tmp_path / "grocery-mcp-mutate-0000aaaa"
     monkeypatch.setattr(mutate, "MUTATE_TMP", place)
     elsewhere = tmp_path / "elsewhere"
     left = _run_folder(elsewhere, "run-000000000005")
@@ -443,7 +443,7 @@ def _mutate_on(tmp_path, monkeypatch, argv):
     monkeypatch.setattr(mutate, "ROOT", tmp_path)
     monkeypatch.setattr(mutate, "ROWS", tmp_path / "scripts/mutations")
     monkeypatch.setattr(mutate, "RECOVERY", tmp_path / "recovery.json")
-    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "grocery-mcp-mutate-0000aaaa")
     monkeypatch.setattr(sys, "argv", ["mutate.py", *argv])
     (tmp_path / "code.py").write_text("x = 2\n", encoding="utf-8")
     left = {"file": "code.py", "mutated": "x = 2\n", "original": "x = 1\n"}
