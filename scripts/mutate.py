@@ -498,7 +498,10 @@ def check_the_package() -> None:
     source = (ROOT / "src").resolve()
     packages = sorted(p.parent.name for p in source.glob("*/__init__.py"))
     if not packages:
-        empty = f"There is no package in {source} to check, so this run would measure nothing of its own."
+        empty = (
+            f"There is no package in {source} to check, so this run would measure nothing of its own."
+            " Run it from the plugin's checkout, where src/kassalapp_mcp/ is."
+        )
         # RULE: a mutation run refuses a checkout with no package
         raise SystemExit(empty)
     for package in packages:
