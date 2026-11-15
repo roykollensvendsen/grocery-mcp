@@ -137,3 +137,21 @@ def test_an_unknown_shop_is_named_without_a_doubled_at(answers):
 def test_a_product_kassalapp_does_not_have_comes_with_a_next_step(answers):
     say = answers.grocery_price("surströmming")["say"]
     assert say == "Kassalapp has no product called surströmming. Try fewer words, or the brand."
+
+
+@pytest.mark.parametrize(
+    ("asked", "said"),
+    [
+        ("Kiwi", "Kiwi; the last one is from March 2025."),
+        ("REMA 1000", "Rema; it has none."),
+        ("Coop Extra", "Coop; it has none."),
+        ("Extra", "Extra; it has none."),
+        ("Coop Obs", "Coop; it has none."),
+    ],
+)
+def test_a_chain_kassalapp_no_longer_reads_is_said_to_have_no_current_prices(answers, asked, said):
+    """Roy's decision: these chains are never scraped, so the answer says so, never silent or a guess."""
+    answer = answers.grocery_price("fjellmelk lett 1 l", chain=asked)
+    assert answer["outcome"] == "no_current_price"
+    assert answer["say"].startswith(f"Kassalapp has no current prices from {said}")
+    assert "costs" not in answer["say"]
