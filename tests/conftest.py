@@ -1,30 +1,32 @@
-"""Checks that hold over the whole test session, not one test."""
+"""Fail the whole run if a test changed the rule check's real recovery file.
+
+`scripts/mutate.py` keeps the file it is mutating there while the suite runs. A
+test that ran the runner without its own `RECOVERY` would overwrite or remove it,
+and in the middle of a mutation run the original would be lost. Proven by
+`tests/test_real_recovery_file_is_guarded.py`.
+"""
 
 import pathlib
 
 import pytest
 
 ROOT = pathlib.Path(__file__).parent.parent
-#: Where the mutation check records the one file it has switched off, so a killed
-#: run can be repaired. A test that wrote it would make the next run "repair" a
-#: file nobody mutated, and overwrite real work.
 RECOVERY = ROOT / "scripts/.mutate-recovery.json"
+BEFORE = pytest.StashKey[bytes | None]()
 
 
-def _state(path):
-    return path.read_bytes() if path.exists() else None
+def _now() -> bytes | None:
+    return RECOVERY.read_bytes() if RECOVERY.is_file() else None
 
 
-@pytest.fixture(autouse=True, scope="session")
-def _the_real_recovery_file_is_never_touched():
-    """No test may create, change or remove the mutation check's recovery file.
+def pytest_sessionstart(session: pytest.Session) -> None:
+    session.config.stash[BEFORE] = _now()
 
-    It is compared, not required absent: during a mutation run the file exists,
-    written just before the suite starts, and must come through it unchanged.
-    """
-    before = _state(RECOVERY)
-    yield
-    after = _state(RECOVERY)
-    assert after == before, (
-        f"a test touched {RECOVERY.relative_to(ROOT)}; point the runner's RECOVERY at tmp_path first"
-    )
+
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    if _now() != session.config.stash[BEFORE]:
+        print(  # noqa: T201
+            "\nA test changed scripts/.mutate-recovery.json, the rule check's real recovery file. "
+            "A test that runs scripts/mutate.py must point RECOVERY at its own temporary file."
+        )
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
