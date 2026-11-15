@@ -1,0 +1,5 @@
+[[rule]]
+name = "a name in a spoken sentence is one short line"
+file = "src/kassalapp_mcp/answers.py"
+find = 'printable = "".join\(c if unicodedata.category\(c\)\[0\] != "C" else " " for c in text\)'
+replace = 'printable = text'

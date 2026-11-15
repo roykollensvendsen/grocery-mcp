@@ -1,0 +1,5 @@
+[[rule]]
+name = "a cached price is used for six hours"
+file = "src/kassalapp_mcp/cache.py"
+find = 'if row and now < dt.datetime.fromisoformat\(row\[0\]\):'
+replace = 'if False:'

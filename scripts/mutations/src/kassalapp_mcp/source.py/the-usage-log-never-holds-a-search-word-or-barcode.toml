@@ -1,0 +1,5 @@
+[[rule]]
+name = "the usage log never holds a search word or barcode"
+file = "src/kassalapp_mcp/source.py"
+find = 'self._quota.after_call\(path, response\)'
+replace = 'self._quota.after_call(str(response.request.url), response)'
