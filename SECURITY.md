@@ -1,7 +1,7 @@
 # Reporting a vulnerability
 
 Report privately, not as an issue: open a
-[security advisory](https://github.com/roykollensvendsen/kassalapp-mcp/security/advisories/new),
+[security advisory](https://github.com/roykollensvendsen/grocery-mcp/security/advisories/new),
 which reaches the maintainer without becoming public.
 
 Say what an attacker gains and how you reached it. A proof of concept helps;

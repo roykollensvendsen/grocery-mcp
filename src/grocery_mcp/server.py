@@ -31,7 +31,7 @@ SIMULATED = "SIMULATED prices, not real ones: say so. "
 #: What the voice hears when Kassalapp cannot be reached.
 DROPPED = "Kassalapp did not answer; try again in a minute."
 #: What the voice hears when the plugin itself fails, so it never hears only that the tool failed.
-BROKE = "That went wrong inside kassalapp-mcp. Try again, and if it fails again, check its log."
+BROKE = "That went wrong inside grocery-mcp. Try again, and if it fails again, check its log."
 #: Seconds one question may take, both calls to Kassalapp together. The voice gives up near 15.
 ANSWER_WITHIN = 9.0
 #: What the voice hears at that deadline; the work carries on, and fills the cache.

@@ -1,6 +1,11 @@
-# kassalapp-mcp
+# grocery-mcp
 
-Grocery prices per chain from Kassalapp, by voice: an MCP server and claude-voice plugin.
+Grocery prices per chain, by voice: an MCP server and claude-voice plugin.
+Kassalapp is its first price source.
+
+It was called kassalapp-mcp. The old command still works while the voice
+bridge starts it by that name. The key, the cache and the private list keep
+their `kassalapp-mcp` folders, as they belong to the Kassalapp source.
 
 It answers two questions, by voice: what a grocery costs at each chain, and
 where it is cheapest. Every answer says how old the price is. It only reads
@@ -13,9 +18,9 @@ not per shop. Price data comes from [Kassalapp](https://kassal.app).
 Try it on made-up prices, with no key and nothing sent:
 
 ```console
-$ kassalapp-mcp price "fjellmelk lett 1 l" --chain Meny --simulate
+$ grocery-mcp price "fjellmelk lett 1 l" --chain Meny --simulate
 Simulated: Fjellmelk lett 1 l costs 26.90 at Meny, checked today. Kassalapp's prices are per chain, not per shop.
-$ kassalapp-mcp price fjellmelk --simulate
+$ grocery-mcp price fjellmelk --simulate
 Simulated: Which one: Fjellmelk lett 1 l, Fjellmelk hel 1 l or Fjellmelk skummet 1 l?
 ```
 
@@ -26,8 +31,8 @@ answer says the plugin is not set up, and nothing is sent.
 A voice session starts it as an MCP server over stdio:
 
 ```console
-$ kassalapp-mcp serve --help
-usage: kassalapp-mcp serve [-h] [--simulate] [--key-file KEY_FILE] [--state-dir STATE_DIR]
+$ grocery-mcp serve --help
+usage: grocery-mcp serve [-h] [--simulate] [--key-file KEY_FILE] [--state-dir STATE_DIR]
 
 options:
   -h, --help            show this help message and exit
@@ -47,7 +52,7 @@ cache, or asks you to try again in a minute. Its log of calls holds no search
 words and no barcodes. To see the count, here from a folder that has none:
 
 ```console
-$ kassalapp-mcp quota --state-dir /nonexistent/kassalapp-mcp
+$ grocery-mcp quota --state-dir /nonexistent/grocery-mcp
 {
   "limit_per_min": null,
   "remaining": null,
