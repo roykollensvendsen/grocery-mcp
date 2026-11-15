@@ -61,3 +61,19 @@ def test_the_tracked_tree_is_clean(tmp_path):
 
 def test_the_history_is_clean(tmp_path):
     assert _clean_run(tmp_path, "--history") == 0
+
+
+def test_a_broken_private_list_refuses_the_commit_and_says_why(tmp_path, capsys):
+    words = tmp_path / "private.toml"
+    words.write_text('words = ["Meny Sentrum Nord"\n', encoding="utf-8")
+    assert private_data_scan.main(["--tracked", "--words", str(words)]) == 1
+    said = capsys.readouterr().err
+    assert "private.toml can't be read" in said
+    assert "Meny Sentrum" not in said
+
+
+def test_a_private_list_without_a_list_of_words_refuses_the_commit(tmp_path, capsys):
+    words = tmp_path / "private.toml"
+    words.write_text('words = "Meny Sentrum Nord"\n', encoding="utf-8")
+    assert private_data_scan.main(["--tracked", "--words", str(words)]) == 1
+    assert "a list of words" in capsys.readouterr().err

@@ -50,11 +50,23 @@ STREET = re.compile(
 COORDINATES = re.compile(r"\b(?:5[7-9]|6\d|7[0-2])\.\d{3,}\s*,\s*(?:[4-9]|[12]\d|3[0-2])\.\d{3,}\b")
 
 
+class BrokenListError(ValueError):
+    """The private list exists but can't be used, so its words would go unchecked."""
+
+
 def private_values(words: pathlib.Path, key: pathlib.Path | None) -> set[str]:
     """The owner's private words, and their key, from files outside the repository."""
     out: set[str] = set()
     if words.is_file():
-        listed = tomllib.loads(words.read_text(encoding="utf-8")).get("words", [])
+        try:
+            listed = tomllib.loads(words.read_text(encoding="utf-8")).get("words", [])
+        except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+            # The parser's own message is left out: it may quote a word from the list.
+            message = f"{words.name} can't be read as TOML"
+            raise BrokenListError(message) from error
+        if not isinstance(listed, list):
+            message = f"{words.name} must hold words = [...], a list of words"
+            raise BrokenListError(message)
         out |= {w for w in listed if isinstance(w, str) and len(w) >= MIN_WORD}
     secret = key.read_text(encoding="utf-8").strip() if key is not None and key.is_file() else ""
     if len(secret) >= MIN_KEY:
@@ -109,7 +121,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--key-file", help="also refuse this Kassalapp key (by default it is not read)")
     args = parser.parse_args(argv)
     key = pathlib.Path(args.key_file).expanduser() if args.key_file else None
-    private = private_values(pathlib.Path(args.words).expanduser(), key)
+    try:
+        private = private_values(pathlib.Path(args.words).expanduser(), key)
+    except BrokenListError as error:
+        # Refused rather than skipped: a commit checked without the list could publish a word from it.
+        sys.stderr.write(f"{error}; fix it, then commit again. Nothing was checked.\n")
+        return 1
     bad = 0
     for where, text in _texts(tracked=args.tracked, history=args.history):
         for offence in offences(text, private):
