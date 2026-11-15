@@ -12,13 +12,7 @@ import unicodedata
 from typing import TYPE_CHECKING, Any
 
 from grocery_mcp.cache import normalised
-from grocery_mcp.source import (
-    KeyRefusedError,
-    NotSetUpError,
-    Product,
-    SearchTooShortError,
-    SlowDownError,
-)
+from grocery_mcp.source import KeyRefusedError, NotSetUpError, Product, SearchTooShortError, SlowDownError
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -24,7 +24,8 @@ import threading
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
-from grocery_mcp.source import LIMIT_PER_MINUTE, SlowDownError
+from grocery_mcp.source import SlowDownError
+from grocery_mcp.sources.kassalapp import LIMIT_PER_MINUTE
 
 if TYPE_CHECKING:
     from collections.abc import Callable

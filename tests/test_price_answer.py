@@ -6,7 +6,7 @@ import pytest
 
 from grocery_mcp.answers import PriceAnswers
 from grocery_mcp.fake import FAKE_KEY, FakeKassalapp
-from grocery_mcp.source import KassalappSource
+from grocery_mcp.sources.kassalapp import KassalappSource
 
 TODAY = dt.date(2026, 11, 14)  # a Saturday
 

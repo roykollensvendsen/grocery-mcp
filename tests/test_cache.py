@@ -8,7 +8,8 @@ import pytest
 from grocery_mcp.answers import PriceAnswers
 from grocery_mcp.cache import CachedSource, kept_until, normalised
 from grocery_mcp.fake import FAKE_KEY, FakeKassalapp
-from grocery_mcp.source import KassalappSource, Product
+from grocery_mcp.source import Product
+from grocery_mcp.sources.kassalapp import KassalappSource
 
 OSLO = dt.timezone(dt.timedelta(hours=1))
 LETT = Product("7000000000017", "Fjellmelk lett 1 l")

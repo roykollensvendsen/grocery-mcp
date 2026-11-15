@@ -13,7 +13,8 @@ import pytest
 
 from grocery_mcp.answers import PriceAnswers
 from grocery_mcp.fake import FAKE_KEY, FakeKassalapp, FakeProduct
-from grocery_mcp.source import KassalappSource, Product, SlowDownError
+from grocery_mcp.source import Product, SlowDownError
+from grocery_mcp.sources.kassalapp import KassalappSource
 
 TODAY = dt.date(2026, 11, 15)
 EVERYWHERE = {
