@@ -262,9 +262,41 @@ def sweep() -> None:
             checkout.rmdir()
 
 
+def _not_ours(why: str) -> str:
+    return (
+        f"{MUTATE_TMP} {why}. Its name is easy to guess in a shared /tmp, so this run will not"
+        " use it: look at what is there, remove it if it is not yours, and run again."
+    )
+
+
+def own_folder() -> None:
+    """Make this checkout's folder of runs, or check the one there is really this user's alone.
+
+    Its name is easy to guess, in a /tmp everyone shares. Only a real folder made by this
+    user, which no one else may enter, is used, so nothing planted there first can steer
+    where a run's files go or what a sweep removes.
+    """
+    MUTATE_TMP.parent.mkdir(parents=True, exist_ok=True)
+    with contextlib.suppress(FileExistsError):
+        MUTATE_TMP.mkdir(mode=0o700)
+    try:
+        fd = os.open(MUTATE_TMP, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as error:  # a link, or something else, planted at the name
+        raise SystemExit(_not_ours(f"is not a folder of yours ({error.strerror})")) from None
+    try:
+        held = os.fstat(fd)
+    finally:
+        os.close(fd)
+    # RULE: a run trusts its folder only when it is really ours
+    if not stat.S_ISDIR(held.st_mode) or held.st_uid != os.getuid():
+        raise SystemExit(_not_ours("is not a folder of yours"))
+    if held.st_mode & 0o077:
+        raise SystemExit(_not_ours(f"is one others may enter (mode {stat.S_IMODE(held.st_mode):o})"))
+
+
 def start_run_folder() -> tuple[pathlib.Path, int]:
     """A new run's folder, and the lock this run now holds on it, taken before it has a run's name."""
-    MUTATE_TMP.mkdir(parents=True, exist_ok=True)
+    own_folder()
     starting = pathlib.Path(tempfile.mkdtemp(prefix="starting-", dir=MUTATE_TMP))
     lock = os.open(starting / LOCK, OPEN_LOCK, 0o600)
     # RULE: a new run's folder is locked before it takes a run's name
