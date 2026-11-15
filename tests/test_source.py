@@ -40,8 +40,16 @@ def test_find_gives_each_product_the_words_could_mean(fake, key_file):
 def test_find_asks_kassalapp_for_products_with_a_barcode_once_each(fake, key_file):
     KassalappSource(fake.client(), key_file).find("fjellmelk")
     params = fake.requests[0].url.params
-    assert params["exclude_without_ean"] == "true"
-    assert params["unique"] == "true"
+    assert params["exclude_without_ean"] == "1"
+    assert params["unique"] == "1"
+
+
+def test_the_fake_refuses_a_yes_no_setting_sent_as_a_word_as_kassalapp_does(fake):
+    headers = {"Authorization": f"Bearer {FAKE_KEY}"}
+    response = fake.client().get(
+        "/products", params={"search": "bergkaffe", "unique": "true"}, headers=headers
+    )
+    assert response.status_code == 422
 
 
 def test_a_search_shorter_than_kassalapp_allows_is_never_sent(fake, key_file):

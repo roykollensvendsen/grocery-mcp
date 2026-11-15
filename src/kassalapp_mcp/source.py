@@ -127,7 +127,8 @@ class KassalappSource:
         # RULE: a search shorter than kassalapp allows is never sent
         if len(words) < MIN_SEARCH:
             raise SearchTooShortError(words)
-        params = {"search": words, "exclude_without_ean": "true", "unique": "true", "size": "10"}
+        # Kassalapp takes a yes/no setting as 1 or 0; the word "true" is refused with 422.
+        params = {"search": words, "exclude_without_ean": "1", "unique": "1", "size": "10"}
         body = self._get("/products", params)
         return [Product(str(p["ean"]), str(p["name"])) for p in body["data"] if p.get("ean")]
 
