@@ -488,9 +488,37 @@ def main() -> int:
         os.close(held)
 
 
+def check_the_package() -> None:
+    """Stop unless the suite will import this checkout's own package.
+
+    Two worktrees sharing one venv import whichever one installed the package last, so
+    every rule would be measured against the other one's code. The check runs in a fresh
+    interpreter, the one the suite will run in, so nothing this script imported can fool it.
+    """
+    source = (ROOT / "src").resolve()
+    for package in sorted(p.parent.name for p in source.glob("*/__init__.py")):
+        found = subprocess.run(  # noqa: S603 - this interpreter, importing a package of this checkout
+            [sys.executable, "-c", f"import {package}; print({package}.__file__)"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        where = pathlib.Path(found.stdout.strip()).resolve().parent if found.returncode == 0 else None
+        if where is None or not where.is_relative_to(source):
+            place = where or f"nowhere ({found.stderr.strip()[-200:]})"
+            refusal = (
+                f"The suite would import {package} from {place}, not from this checkout's {source}."
+                f" Run `uv sync` in {ROOT}, and do not point UV_PROJECT_ENVIRONMENT at a shared venv."
+            )
+            # RULE: a mutation run refuses a package from another checkout
+            raise SystemExit(refusal)
+
+
 def check_every_rule(write: pathlib.Path | None) -> int:
     """Mutate every rule in turn, restore the tree, and report."""
     start()
+    check_the_package()
     rules = all_rows()
     if (empty := nothing_to_check(rules)) is not None:
         return empty
