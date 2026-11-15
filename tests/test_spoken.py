@@ -4,7 +4,7 @@ import datetime as dt
 
 from grocery_mcp.answers import SPOKEN_MAX, PriceAnswers, spoken
 from grocery_mcp.fake import FAKE_KEY, FakeKassalapp, FakeProduct
-from grocery_mcp.source import KassalappSource
+from grocery_mcp.sources.kassalapp import KassalappSource
 
 TODAY = dt.date(2026, 11, 14)
 LONG = "Fjellmelk\x07 ekstra\nlett\t1 l " + "med en svært lang beskrivelse " * 6 + "slutt"

@@ -16,7 +16,7 @@ from grocery_mcp.answers import PriceAnswers
 from grocery_mcp.cache import CachedSource
 from grocery_mcp.fake import FAKE_KEY, FakeKassalapp
 from grocery_mcp.quota import Quota
-from grocery_mcp.source import BASE_URL, KassalappSource
+from grocery_mcp.sources.kassalapp import BASE_URL, KassalappSource
 
 #: Every verb this command has. The documentation test requires each one to
 #: appear in a worked example, so a verb cannot be added without one.
