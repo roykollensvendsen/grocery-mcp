@@ -7,6 +7,7 @@ so a second source later gets the same rules without writing them again.
 from __future__ import annotations
 
 import datetime as dt
+import unicodedata
 from typing import TYPE_CHECKING, Any
 
 from kassalapp_mcp.cache import normalised
@@ -28,6 +29,8 @@ STALE_AFTER = dt.timedelta(days=14)
 #: The most products named in one question, and the most chains in one answer.
 MOST_CHOICES = 3
 MOST_CHAINS = 3
+#: The most characters of one name read aloud: a product, a chain, or the words asked with.
+SPOKEN_MAX = 60
 #: A barcode, as the voice may pass back one of the choices it was offered.
 BARCODE_DIGITS = range(8, 15)
 #: Chains Kassalapp no longer fetches, by the words a person would use for them.
@@ -92,7 +95,7 @@ class PriceAnswers:
         prices = self._source.prices([chosen])
         if not chosen.name:
             if not prices:
-                return _refused("not_found", f"Kassalapp has no product with the barcode {words}.")
+                return _refused("not_found", f"Kassalapp has no product with the barcode {spoken(words)}.")
             chosen = prices[0].product
         self._keep(words, chosen)
         answer = build(chosen, prices)
@@ -103,13 +106,13 @@ class PriceAnswers:
 
     def _chosen(self, words: str) -> Product | dict[str, Any]:
         """The one product the words mean, or the answer that asks which."""
-        spoken = words.strip()
-        if spoken.isdigit() and len(spoken) in BARCODE_DIGITS:
+        given = words.strip()
+        if given.isdigit() and len(given) in BARCODE_DIGITS:
             offered = self._asked[1] if self._asked else []
-            return next((p for p in offered if p.ean == spoken), Product(spoken, ""))
+            return next((p for p in offered if p.ean == given), Product(given, ""))
         found = self._source.find(words)
         if not found:
-            return _refused("not_found", f"Kassalapp has no product called {words}.")
+            return _refused("not_found", f"Kassalapp has no product called {spoken(words)}.")
         # RULE: answering an offered choice gives a price never the question again
         exact = [p for p in found if normalised(p.name) == normalised(words)]
         if len(found) == 1 or len(exact) == 1:
@@ -120,7 +123,7 @@ class PriceAnswers:
         return {
             "success": False,
             "outcome": "ask",
-            "say": f"Which one: {_either([p.name for p in offered])}?",
+            "say": f"Which one: {_either([spoken(p.name) for p in offered])}?",
             "choices": [{"name": p.name, "ean": p.ean} for p in offered],
         }
 
@@ -136,50 +139,62 @@ class PriceAnswers:
         # RULE: a stale price is never the cheapest
         current = sorted((p for p in prices if self._current(p)), key=lambda p: (p.price, p.chain_name))
         if not current:
-            say = f"Kassalapp has no current price for {product.name} at any chain. {NOT_FETCHED_SAID}"
+            say = (
+                f"Kassalapp has no current price for {spoken(product.name)} at any chain. {NOT_FETCHED_SAID}"
+            )
             return _answer("no_current_price", say, [], success=False)
         best = current[0]
         if len(current) == 1:
-            say = f"Only {best.chain_name} has a current price for {product.name}:"
+            say = f"Only {spoken(best.chain_name)} has a current price for {spoken(product.name)}:"
             say += f" {best.price:.2f}, {self._checked(best)}."
             return _answer("cheapest", f"{say} {NOT_FETCHED_SAID}", current)
         tied = [p for p in current if p.price == best.price]
         if len(tied) > 1:
-            chains = _both_and([p.chain_name for p in tied[:MOST_CHAINS]])
-            say = f"{product.name} costs the same, {best.price:.2f}, at {chains}, {self._checked(best)}."
+            chains = _both_and([spoken(p.chain_name) for p in tied[:MOST_CHAINS]])
+            say = f"{spoken(product.name)} costs the same, {best.price:.2f}, at {chains},"
+            say += f" {self._checked(best)}."
             return _answer("cheapest", f"{say} {NOT_FETCHED_SAID}", current)
         after = current[1]
-        say = f"{product.name} is cheapest at {best.chain_name}, {best.price:.2f}, {self._checked(best)}."
-        say += f" Then {after.chain_name} at {after.price:.2f}, {self._checked(after)}."
+        say = f"{spoken(product.name)} is cheapest at {spoken(best.chain_name)}, {best.price:.2f},"
+        say += f" {self._checked(best)}."
+        say += f" Then {spoken(after.chain_name)} at {after.price:.2f}, {self._checked(after)}."
         return _answer("cheapest", f"{say} {NOT_FETCHED_SAID}", current)
 
     def _one_chain(self, product: Product, prices: list[ItemPrice], chain: str) -> dict[str, Any]:
-        spoken = chain.strip().lower()
-        at = next((p for p in prices if _is_chain(p, spoken)), None)
-        if spoken.startswith(NOT_FETCHED):
+        named = chain.strip().lower()
+        at = next((p for p in prices if _is_chain(p, named)), None)
+        if named.startswith(NOT_FETCHED):
             last = f"the last one is from {self._month(at.seen_at)}" if at and at.seen_at else "it has none"
-            say = f"Kassalapp has no current prices from {chain.strip()}; {last}."
+            say = f"Kassalapp has no current prices from {spoken(chain)}; {last}."
             return _answer("no_current_price", say, [at] if at else [], success=False)
         if at is None:
-            return _answer("no_current_price", f"Kassalapp has no price for {product.name} at {chain}.", [])
+            return _answer(
+                "no_current_price",
+                f"Kassalapp has no price for {spoken(product.name)} at {spoken(chain)}.",
+                [],
+            )
         if not self._current(at):
             when = self._month(at.seen_at) if at.seen_at else "an unknown day"
-            say = f"For {product.name} at {at.chain_name}, Kassalapp has only the last known price"
-            say += f", from {when}. It was {at.price:.2f}."
+            say = f"For {spoken(product.name)} at {spoken(at.chain_name)},"
+            say += f" Kassalapp has only the last known price, from {when}. It was {at.price:.2f}."
             return _answer("no_current_price", say, [at], success=False)
-        say = f"{product.name} costs {at.price:.2f} at {at.chain_name}, {self._checked(at)}."
+        say = f"{spoken(product.name)} costs {at.price:.2f} at {spoken(at.chain_name)}, {self._checked(at)}."
         return _answer("price", say, [at])
 
     def _every_chain(self, product: Product, prices: list[ItemPrice]) -> dict[str, Any]:
         # RULE: a price older than fourteen days is never called current
         current = sorted((p for p in prices if self._current(p)), key=lambda p: p.price)
         if not current:
-            say = f"Kassalapp has no current price for {product.name} at any chain. {NOT_FETCHED_SAID}"
+            say = (
+                f"Kassalapp has no current price for {spoken(product.name)} at any chain. {NOT_FETCHED_SAID}"
+            )
             return _answer("no_current_price", say, [], success=False)
-        named = [f"{p.price:.2f} at {p.chain_name}, {self._checked(p)}" for p in current[:MOST_CHAINS]]
+        named = [
+            f"{p.price:.2f} at {spoken(p.chain_name)}, {self._checked(p)}" for p in current[:MOST_CHAINS]
+        ]
         more = len(current) - MOST_CHAINS
         tail = f", and {more} more" if more > 0 else ""
-        say = f"{product.name} costs {_both(named)}{tail}. {NOT_FETCHED_SAID}"
+        say = f"{spoken(product.name)} costs {_both(named)}{tail}. {NOT_FETCHED_SAID}"
         return _answer("price", say, current)
 
     def _current(self, price: ItemPrice) -> bool:
@@ -200,6 +215,16 @@ class PriceAnswers:
     def _month(self, day: dt.date) -> str:
         month = MONTHS[day.month - 1]
         return month if day.year == self._today().year else f"{month} {day.year}"
+
+
+def spoken(text: str) -> str:
+    """A name as it may be read aloud: one line, no control characters, and short."""
+    # RULE: a name in a spoken sentence is one short line
+    printable = "".join(c if unicodedata.category(c)[0] != "C" else " " for c in text)
+    line = " ".join(printable.split())
+    if len(line) <= SPOKEN_MAX:
+        return line
+    return line[: SPOKEN_MAX - 1].rsplit(" ", 1)[0] + "…"
 
 
 def _is_chain(price: ItemPrice, spoken: str) -> bool:
