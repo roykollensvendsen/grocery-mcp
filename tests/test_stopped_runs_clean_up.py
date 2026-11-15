@@ -367,3 +367,19 @@ def test_ctrl_c_then_a_kill_still_puts_everything_back(tmp_path):
     running.wait(timeout=30)
     assert source.read_text(encoding="utf-8") == "# RULE: x is one\nx = 1\n"
     assert not (tmp_path / "mutate-tmp").exists()
+
+
+def test_a_new_run_s_lock_is_always_one_it_made(tmp_path, monkeypatch):
+    """A lock file already in place is never taken as a new run's own."""
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    real_mkdtemp = mutate.tempfile.mkdtemp
+
+    def with_a_lock_already_there(*args, **kwargs):
+        made = pathlib.Path(real_mkdtemp(*args, **kwargs))
+        (made / mutate.LOCK).write_text("", encoding="utf-8")
+        return str(made)
+
+    monkeypatch.setattr(mutate.tempfile, "mkdtemp", with_a_lock_already_there)
+    with pytest.raises(FileExistsError):
+        mutate.start_run_folder()

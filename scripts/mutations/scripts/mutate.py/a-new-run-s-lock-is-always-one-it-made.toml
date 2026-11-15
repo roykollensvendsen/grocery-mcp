@@ -1,0 +1,5 @@
+[[rule]]
+name = "a new run s lock is always one it made"
+file = "scripts/mutate.py"
+find = '^OPEN_LOCK = os\.O_RDWR \| os\.O_CREAT \| os\.O_EXCL \| os\.O_NOFOLLOW$'
+replace = 'OPEN_LOCK = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW'
