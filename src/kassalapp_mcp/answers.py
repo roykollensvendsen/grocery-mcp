@@ -31,6 +31,8 @@ STALE_AFTER = dt.timedelta(days=14)
 #: The most products named in one question, and the most chains in one answer.
 MOST_CHOICES = 3
 MOST_CHAINS = 3
+#: The most matches whose prices are asked, to rank a question's choices in one call.
+MOST_RANKED = 20
 #: The most characters of one name read aloud: a product, a chain, or the words asked with.
 SPOKEN_MAX = 60
 #: A barcode, as the voice may pass back one of the choices it was offered.
@@ -141,8 +143,10 @@ class PriceAnswers:
         an organic line sold in one chain before the milk every chain sells. One bulk
         price call counts the chains; with the cache, it also answers the price asked next.
         """
+        # RULE: ranking the choices costs at most one price call
+        ranked, rest = found[:MOST_RANKED], found[MOST_RANKED:]
         try:
-            prices = self._source.prices(found)
+            prices = self._source.prices(ranked)
         except (SlowDownError, httpx.HTTPError):
             # Kassalapp's own order still makes a fair question.
             # RULE: a failed ranking still asks the question
@@ -152,7 +156,7 @@ class PriceAnswers:
             if self._current(price):
                 chains.setdefault(price.product.ean, set()).add(price.chain)
         # RULE: the choices are offered most sold first
-        return sorted(found, key=lambda p: -len(chains[p.ean]))
+        return sorted(ranked, key=lambda p: -len(chains[p.ean])) + rest
 
     def _keep(self, words: str, chosen: Product) -> None:
         """Remember a chosen product under these words, and under the question that offered it."""
