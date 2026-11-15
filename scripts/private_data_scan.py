@@ -54,9 +54,9 @@ def private_values(words: pathlib.Path, key: pathlib.Path | None) -> set[str]:
     """The owner's private words, and their key, from files outside the repository."""
     out: set[str] = set()
     if words.is_file():
-        listed = tomllib.loads(words.read_text()).get("words", [])
+        listed = tomllib.loads(words.read_text(encoding="utf-8")).get("words", [])
         out |= {w for w in listed if isinstance(w, str) and len(w) >= MIN_WORD}
-    secret = key.read_text().strip() if key is not None and key.is_file() else ""
+    secret = key.read_text(encoding="utf-8").strip() if key is not None and key.is_file() else ""
     if len(secret) >= MIN_KEY:
         out.add(secret)
     return out
@@ -80,7 +80,8 @@ def _line(text: str, at: int) -> int:
 
 
 def _git(*args: str) -> str:
-    done = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True)  # noqa: S603, S607
+    command = ["git", *args]
+    done = subprocess.run(command, cwd=ROOT, capture_output=True, encoding="utf-8", check=True)  # noqa: S603
     return done.stdout
 
 
@@ -93,7 +94,7 @@ def _texts(*, tracked: bool, history: bool) -> list[tuple[str, str]]:
     for name in names.splitlines():
         path = ROOT / name
         try:
-            out.append((name, path.read_text()))
+            out.append((name, path.read_text(encoding="utf-8")))
         except (FileNotFoundError, IsADirectoryError, UnicodeDecodeError):
             continue
     return out
