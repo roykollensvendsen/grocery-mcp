@@ -35,7 +35,7 @@ def test_long_spoken_words_are_cut_in_the_answer():
     fake = FakeKassalapp(today=TODAY)
     words = "surströmming " * 20
     say = _answers(fake).grocery_price(words)["say"]
-    assert len(say) < len("Kassalapp has no product called .") + SPOKEN_MAX + 1
+    assert len(say) < len("Kassalapp has no product called . Try fewer words, or the brand.") + SPOKEN_MAX + 1
     say = _answers(fake).grocery_price("bergkaffe", chain="Rema\n" + "x" * 200)["say"]
     assert "\n" not in say
     assert "x" * (SPOKEN_MAX + 1) not in say

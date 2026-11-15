@@ -130,3 +130,8 @@ def test_an_unknown_shop_is_named_without_a_doubled_at(answers):
     assert answer["say"].startswith(
         "Kassalapp has no price for Bergkaffe filtermalt 500 g at the corner shop."
     )
+
+
+def test_a_product_kassalapp_does_not_have_comes_with_a_next_step(answers):
+    say = answers.grocery_price("surströmming")["say"]
+    assert say == "Kassalapp has no product called surströmming. Try fewer words, or the brand."
