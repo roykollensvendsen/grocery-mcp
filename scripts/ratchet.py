@@ -58,7 +58,7 @@ EXCEPTION = re.compile(r"^\s*ratchet-exception:\s*([a-z_]+)", re.IGNORECASE | re
 TALLY = re.compile(r"(\d+)/(\d+) rules turned off")
 #: The layers, lowest first. The core reads Kassalapp and words its answers, and knows no MCP;
 #: only the top serves them over MCP and the command line.
-CORE = {"source", "answers", "cache", "quota", "fake", "__init__", "_version"}
+CORE = {"source", "sources", "sources.kassalapp", "answers", "cache", "quota", "fake", "__init__", "_version"}
 TOP = {"server", "cli"}
 #: Which layers each layer may import from this package, and the outside packages it never may.
 ALLOWED = {"core": {"core"}, "top": {"core", "top"}}

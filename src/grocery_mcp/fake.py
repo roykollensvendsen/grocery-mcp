@@ -19,7 +19,7 @@ from typing import Any
 
 import httpx
 
-from grocery_mcp.source import BASE_URL, LIMIT_PER_MINUTE, MAX_BULK, MIN_SEARCH
+from grocery_mcp.sources.kassalapp import BASE_URL, LIMIT_PER_MINUTE, MAX_BULK, MIN_SEARCH
 
 #: The key the fake accepts. Any other gets 401.
 FAKE_KEY = "fake-key"

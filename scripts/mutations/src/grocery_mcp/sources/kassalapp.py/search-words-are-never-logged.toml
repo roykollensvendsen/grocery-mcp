@@ -1,5 +1,5 @@
 [[rule]]
 name = "search words are never logged"
-file = "src/grocery_mcp/source.py"
+file = "src/grocery_mcp/sources/kassalapp.py"
 find = 'logging.getLogger\(_library\).setLevel\(logging.WARNING\)'
 replace = 'logging.getLogger(_library).setLevel(logging.NOTSET)'
