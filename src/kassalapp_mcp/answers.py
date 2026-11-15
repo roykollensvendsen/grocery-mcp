@@ -114,7 +114,10 @@ class PriceAnswers:
             return next((p for p in offered if p.ean == given), Product(given, ""))
         found = self._source.find(words)
         if not found:
-            return _refused("not_found", f"Kassalapp has no product called {spoken(words)}.")
+            return _refused(
+                "not_found",
+                f"Kassalapp has no product called {spoken(words)}. Try fewer words, or the brand.",
+            )
         # RULE: answering an offered choice gives a price never the question again
         exact = [p for p in found if normalised(p.name) == normalised(words)]
         if len(found) == 1 or len(exact) == 1:
