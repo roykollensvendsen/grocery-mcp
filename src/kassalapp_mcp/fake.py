@@ -100,12 +100,17 @@ class FakeKassalapp:
             return httpx.Response(429, headers=wait)
         path = request.url.path.removeprefix(httpx.URL(BASE_URL).path)
         if request.method == "GET" and path == "/products":
-            return self._search(request.url.params.get("search", ""))
+            return self._search(request.url.params)
         if request.method == "POST" and path == "/products/prices-bulk":
             return self._bulk(json.loads(request.content)["eans"])
         return httpx.Response(404, json={"message": "Not found."})
 
-    def _search(self, words: str) -> httpx.Response:
+    def _search(self, params: httpx.QueryParams) -> httpx.Response:
+        # As the live service, seen 2026-11-15: a yes/no setting is 1 or 0, never the word "true".
+        bad = [f for f in ("unique", "exclude_without_ean") if params.get(f, "1") not in {"0", "1"}]
+        if bad:
+            return httpx.Response(422, json={"message": f"The {bad[0]} field must be true or false."})
+        words = params.get("search", "")
         if len(words) < MIN_SEARCH:
             return httpx.Response(422, json={"message": "The search must be at least 3 characters."})
         # The real search is fuzzy: any word may match, and the best matches come first.
