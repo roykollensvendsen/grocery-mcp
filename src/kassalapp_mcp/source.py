@@ -134,23 +134,14 @@ class KassalappSource:
         eans = list(by_ean)
         for start in range(0, len(eans), MAX_BULK):
             body = self._post("/products/prices-bulk", {"eans": eans[start : start + MAX_BULK]})
-            for entry in body["data"]:
-                product = by_ean.get(str(entry["ean"]))
+            for entry in body.get("data") or []:
+                product = by_ean.get(str(entry.get("ean")))
                 if product is None:
                     continue
                 if not product.name:
                     product = Product(product.ean, str(entry.get("name") or product.ean))
                 found.extend(
-                    ItemPrice(
-                        product=product,
-                        chain=str(store["store"]),
-                        chain_name=str(store["name"]),
-                        # Kassalapp sends a price as a number or a string; both read exactly.
-                        price=Decimal(str(store["current_price"])),
-                        seen_at=_date(store.get("last_checked")),
-                    )
-                    for store in entry["stores"]
-                    if store.get("current_price") is not None
+                    price for store in entry.get("stores") or [] if (price := _store_price(product, store))
                 )
         return found
 
@@ -185,6 +176,35 @@ class KassalappSource:
             # RULE: the usage log never holds a search word or barcode
             self._quota.after_call(path, response)
         return _checked(response)
+
+
+def _store_price(product: Product, store: object) -> ItemPrice | None:
+    """One chain's price, or None when Kassalapp left out what is needed to say it.
+
+    Kassalapp's description gives ``store`` as a code string and ``name`` beside it.
+    An object with ``code`` and ``name`` is read too, in case the answer differs.
+    """
+    if not isinstance(store, dict):
+        return None
+    code: object = store.get("store")
+    name: object = store.get("name")
+    if isinstance(code, dict):
+        name = name or code.get("name")
+        code = code.get("code")
+    try:
+        # Kassalapp sends a price as a number or a string; both read exactly.
+        price = Decimal(str(store.get("current_price")))
+    except ArithmeticError:
+        return None
+    if not isinstance(code, str) or not code or not price.is_finite():
+        return None
+    return ItemPrice(
+        product=product,
+        chain=code,
+        chain_name=str(name or code),
+        price=price,
+        seen_at=_date(store.get("last_checked")),
+    )
 
 
 def _read_key(key: pathlib.Path | Callable[[], str]) -> str:
