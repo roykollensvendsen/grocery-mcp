@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import contextlib
 import json
 import os
 import re
@@ -286,7 +287,36 @@ def _run(
     cwd: Path = ROOT,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True, check=False)  # noqa: S603
+    """Run `command` to its end and give back what it printed.
+
+    The child runs in a session of its own, so a Ctrl-C in the terminal reaches it only
+    through this script, once. Stopped, this script passes the stop on as a Ctrl-C and
+    waits for the child to clean up, with no time limit, since runs never have one. A
+    child that hangs after that can be ended by hand: ``kill -9 -- -<its pid>``.
+    What it prints goes to temporary files rather than pipes, which could fill and stall it.
+    """
+    with tempfile.TemporaryFile("w+") as out, tempfile.TemporaryFile("w+") as err:
+        child = subprocess.Popen(  # noqa: S603 - commands this script names
+            command,
+            cwd=cwd,
+            env=env,
+            stdout=out,
+            stderr=err,
+            text=True,
+            # RULE: the quality check s child hears a stop only through it
+            start_new_session=True,
+        )
+        try:
+            child.wait()
+        except BaseException:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(child.pid, signal.SIGINT)
+            # RULE: the quality check passes a stop to its child and waits
+            child.wait()
+            raise
+        out.seek(0)
+        err.seek(0)
+        return subprocess.CompletedProcess(command, child.returncode, out.read(), err.read())
 
 
 def measure(*, skip_mutation: bool = False, recorded: dict[str, Any] | None = None) -> dict[str, Any]:

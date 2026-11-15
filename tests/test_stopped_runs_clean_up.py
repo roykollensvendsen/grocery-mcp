@@ -470,3 +470,67 @@ def test_repair_only_puts_back_what_a_killed_run_left_and_nothing_else(tmp_path,
     assert (tmp_path / "code.py").read_text(encoding="utf-8") == "x = 1\n"
     assert not mutate.RECOVERY.exists()
     assert not mutate.MUTATE_TMP.exists(), "it swept or started a run"
+
+
+#: A child that takes a moment to clean up on Ctrl-C, and says which session it is in.
+SLOW_CHILD = """
+import os, pathlib, signal, sys, time
+here = pathlib.Path(sys.argv[1])
+
+def stopped(_signum, _frame):
+    time.sleep(1)
+    (here / "child-cleaned").touch()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, stopped)
+(here / "child").write_text(f"{os.getpid()} {os.getsid(0)}")
+time.sleep(60)
+"""
+
+
+def _quality_check_with_a_child(tmp_path):
+    """A script that runs the quality check's own way of starting a child, on SLOW_CHILD."""
+    (tmp_path / "child.py").write_text(SLOW_CHILD, encoding="utf-8")
+    script = tmp_path / "quality.py"
+    script.write_text(
+        textwrap.dedent(f"""
+            import importlib.util, sys
+            spec = importlib.util.spec_from_file_location("ratchet", {str(ROOT / "scripts/ratchet.py")!r})
+            ratchet = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(ratchet)
+            ratchet.stop_cleanly_when_killed()
+            ratchet._run(sys.executable, {str(tmp_path / "child.py")!r}, {str(tmp_path)!r})
+        """),
+        encoding="utf-8",
+    )
+    return subprocess.Popen([sys.executable, str(script)])
+
+
+def _stop_child(tmp_path):
+    with __import__("contextlib").suppress(FileNotFoundError, ProcessLookupError, ValueError):
+        os.kill(int((tmp_path / "child").read_text(encoding="utf-8").split()[0]), signal.SIGKILL)
+
+
+def test_the_quality_check_passes_a_stop_to_its_child_and_waits(tmp_path):
+    """Stopped, the quality check must not leave a child still changing files behind it."""
+    running = _quality_check_with_a_child(tmp_path)
+    try:
+        _waits_for((tmp_path / "child").exists, "the child never started")
+        running.send_signal(signal.SIGTERM)
+        running.wait(timeout=60)
+        assert (tmp_path / "child-cleaned").exists(), "it ended before its child had cleaned up"
+    finally:
+        running.kill()
+        _stop_child(tmp_path)
+
+
+def test_the_quality_check_s_child_hears_a_stop_only_through_it(tmp_path):
+    """A Ctrl-C in the terminal reaches the whole session; the child must get it once, passed on."""
+    running = _quality_check_with_a_child(tmp_path)
+    try:
+        _waits_for(lambda: (tmp_path / "child").exists() and (tmp_path / "child").stat().st_size, "no child")
+        _, session = (tmp_path / "child").read_text(encoding="utf-8").split()
+        assert int(session) != os.getsid(0)
+    finally:
+        running.kill()
+        _stop_child(tmp_path)

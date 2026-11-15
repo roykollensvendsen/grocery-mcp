@@ -1,0 +1,5 @@
+[[rule]]
+name = "the quality check s child hears a stop only through it"
+file = "scripts/ratchet.py"
+find = '^            start_new_session=True,$'
+replace = 'start_new_session=False,'
