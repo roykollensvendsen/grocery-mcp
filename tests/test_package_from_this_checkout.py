@@ -128,4 +128,4 @@ def test_a_mutation_run_refuses_a_checkout_with_no_package(tmp_path, monkeypatch
     with pytest.raises(SystemExit, match="no package") as refused:
         mutate.check_the_package()
     assert str(tmp_path / "src") in str(refused.value)
-    assert "Run it from the plugin's checkout" in str(refused.value), "the refusal names the next step"
+    assert "Run it from the plugin's checkout, where src/grocery_mcp/ is." in str(refused.value)
