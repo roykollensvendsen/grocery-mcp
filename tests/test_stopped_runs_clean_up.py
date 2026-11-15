@@ -240,3 +240,37 @@ def test_pytest_s_own_clearing_never_takes_a_running_run_s_lock(tmp_path):
     finally:
         running.send_signal(signal.SIGTERM)
         running.wait(timeout=30)
+
+
+CHANGES_A_STOP = """
+import signal
+
+def test_one_installs_stop_handlers():
+    for each in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(each, signal.SIG_IGN)
+
+def test_two_finds_them_as_they_were():
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+    assert signal.getsignal(signal.SIGTERM) is signal.SIG_DFL
+    assert signal.getsignal(signal.SIGHUP) is signal.SIG_DFL
+"""
+
+
+def test_one_test_s_stop_handlers_never_reach_the_next(tmp_path):
+    """A test calling a script's main() installs its stop handlers in the test run itself.
+
+    Left there, a kill would no longer end the test run, and after one stop the rest
+    would be ignored. The conftest puts the three signals back after every test.
+    """
+    (tmp_path / "tests").mkdir()
+    conftest = (ROOT / "tests/conftest.py").read_text(encoding="utf-8")
+    (tmp_path / "tests/conftest.py").write_text(conftest, encoding="utf-8")
+    (tmp_path / "tests/test_stops.py").write_text(CHANGES_A_STOP, encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--rootdir", str(tmp_path), "tests"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert done.returncode == 0, done.stdout
