@@ -178,20 +178,33 @@ def _remove(folder: pathlib.Path) -> None:
 #: The lock sits beside that folder: pytest empties the folder it is given as it starts.
 LOCK = ".lock"
 OPEN_LOCK = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW
+#: A sweep only opens a lock that is there: one it made would sit in a new run's folder
+#: before that run moves in, and the run's rename onto it would then fail.
+OPEN_THEIR_LOCK = os.O_RDWR | os.O_NOFOLLOW
 #: A run's folder, and one being made, which is locked before it takes a run's name.
 RUN_NAME = re.compile(r"run-[\w-]+")
 STARTING = re.compile(r"starting-\w+")
-#: How old an unlocked folder being made must be before it counts as left by a killed run.
+#: How old a folder with no lock held, or none made yet, must be before it counts as left
+#: by a killed run. A guess: a run takes well under a second to start and lock its folder,
+#: and nothing measured says how long a run killed while starting may sit before then.
 STARTING_SECONDS = 3600
+
+
+def _looked_at(path: pathlib.Path) -> os.stat_result | None:
+    """What `path` is, if it is a real folder of this user's; a link is never followed.
+
+    None when it is not, or when another sweep removed it first.
+    """
+    try:
+        found = path.lstat()
+    except FileNotFoundError:
+        return None
+    return found if stat.S_ISDIR(found.st_mode) and found.st_uid == os.getuid() else None
 
 
 def _ours(path: pathlib.Path) -> bool:
     """A real folder of this user's; a link is never followed."""
-    try:
-        found = path.lstat()
-    except FileNotFoundError:
-        return False
-    return stat.S_ISDIR(found.st_mode) and found.st_uid == os.getuid()
+    return _looked_at(path) is not None
 
 
 def _checkouts() -> list[pathlib.Path]:
@@ -207,14 +220,21 @@ def _checkouts() -> list[pathlib.Path]:
 def _dead(run: pathlib.Path) -> bool:
     """Whether `run` is a run's folder whose run has ended: nobody holds its lock."""
     starting = STARTING.fullmatch(run.name)
-    if not (_ours(run) and (starting or RUN_NAME.fullmatch(run.name))):
+    found = _looked_at(run) if starting or RUN_NAME.fullmatch(run.name) else None
+    if found is None:
         return False
-    if starting and time.time() - run.lstat().st_mtime < STARTING_SECONDS:
+    young = time.time() - found.st_mtime < STARTING_SECONDS
+    if starting and young:
         return False  # it may be being made right now
     try:
-        lock = os.open(run / LOCK, OPEN_LOCK, 0o600)
+        lock = os.open(run / LOCK, OPEN_THEIR_LOCK)
+    except FileNotFoundError:
+        # No lock yet: a new run's claimed name, or a run killed before it locked. The
+        # first look's age is used: another sweep may have removed the folder since.
+        # RULE: a claimed folder with no lock yet is never swept
+        return not young
     except OSError:
-        return bool(starting)  # killed before it could lock
+        return False
     try:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

@@ -1,0 +1,5 @@
+[[rule]]
+name = "a claimed folder with no lock yet is never swept"
+file = "scripts/mutate.py"
+find = '^        return not young$'
+replace = 'return True'
