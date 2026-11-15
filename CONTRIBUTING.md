@@ -57,7 +57,8 @@ way to learn that the gates are not a ritual performed once.
    turn the rule off with `uv run python scripts/mutate.py`, watch a named test
    go red, and keep its row.
 
-   A rule is a line marked `# RULE: what it says` in the source. Every one needs
+   A rule is a line marked `# RULE: what it says`, in `src/` or in any script
+   under `scripts/`, the mutation script's own included. Every one needs
    a row and a test whose name is the rule's own words. The row is a file of its
    own: a rule in `src/kassalapp_mcp/quota.py` named "a 429 stops calls" goes in
    `scripts/mutations/src/kassalapp_mcp/quota.py/a-429-stops-calls.toml`, and the

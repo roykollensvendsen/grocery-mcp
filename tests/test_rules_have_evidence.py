@@ -32,9 +32,9 @@ def _mutate():
     return module
 
 
-#: This project's own scripts. The scaffold's tools, such as mutate.py, carry rules
-#: of their own, and those are guarded where the scaffold is kept, not here.
-OWN_SCRIPTS = (ROOT / "scripts/private_data_scan.py", ROOT / "scripts/ratchet.py")
+#: Every script, the scaffold's own tools included: a rule there is proven as one in
+#: src/ is. Files only, since the row folders under scripts/mutations/ carry .py names.
+OWN_SCRIPTS = tuple(sorted(p for p in (ROOT / "scripts").glob("*.py") if p.is_file()))
 
 
 def marked_rules() -> set[str]:
