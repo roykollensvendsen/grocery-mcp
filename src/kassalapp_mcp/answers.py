@@ -37,6 +37,8 @@ BARCODE_DIGITS = range(8, 15)
 NOT_FETCHED = ("kiwi", "rema", "coop", "extra", "prix", "obs", "mega")
 NOT_FETCHED_SAID = "No current prices from Kiwi, REMA or Coop."
 PER_CHAIN = "Kassalapp's prices are per chain, not per shop."
+#: Words around a chain's name that do not make it a particular shop.
+FILLER = frozenset({"at", "the"})
 
 NOT_SET_UP = "Kassalapp isn't set up; add your own key, see the README."
 REFUSED = "Kassalapp refused the key; make a new one at kassal.app/profil/api and put it in the key file."
@@ -161,18 +163,31 @@ class PriceAnswers:
         return _answer("cheapest", f"{say} {NOT_FETCHED_SAID}", current)
 
     def _one_chain(self, product: Product, prices: list[ItemPrice], chain: str) -> dict[str, Any]:
-        named = chain.strip().lower()
-        at = next((p for p in prices if _is_chain(p, named)), None)
-        if named.startswith(NOT_FETCHED):
+        words = [w.strip(",.") for w in chain.lower().split()]
+        # Said as the person said it, less a leading "at" the sentence already has.
+        asked = " ".join(chain.split()[1:]) if words[:1] == ["at"] else chain
+        # RULE: a shop named by place finds its chain and says prices are per chain
+        at = next((p for p in prices if _is_chain(p, words)), None)
+        not_fetched = next((w for w in words if w.startswith(NOT_FETCHED)), None)
+        chain_words = set(at.chain_name.lower().split()) if at else {not_fetched}
+        shop = any(w not in chain_words and w not in FILLER for w in words)
+        answer = self._at_chain(product, at, not_fetched, asked)
+        if shop and (at or not_fetched):
+            answer["say"] += " " + PER_CHAIN
+            self._said_per_chain = True
+        return answer
+
+    def _at_chain(
+        self, product: Product, at: ItemPrice | None, not_fetched: str | None, asked: str
+    ) -> dict[str, Any]:
+        if not_fetched:
+            name = at.chain_name if at else not_fetched.capitalize()
             last = f"the last one is from {self._month(at.seen_at)}" if at and at.seen_at else "it has none"
-            say = f"Kassalapp has no current prices from {spoken(chain)}; {last}."
+            say = f"Kassalapp has no current prices from {spoken(name)}; {last}."
             return _answer("no_current_price", say, [at] if at else [], success=False)
         if at is None:
-            return _answer(
-                "no_current_price",
-                f"Kassalapp has no price for {spoken(product.name)} at {spoken(chain)}.",
-                [],
-            )
+            say = f"Kassalapp has no price for {spoken(product.name)} at {spoken(asked)}."
+            return _answer("no_current_price", say, [])
         if not self._current(at):
             when = self._month(at.seen_at) if at.seen_at else "an unknown day"
             say = f"For {spoken(product.name)} at {spoken(at.chain_name)},"
@@ -227,8 +242,11 @@ def spoken(text: str) -> str:
     return line[: SPOKEN_MAX - 1].rsplit(" ", 1)[0] + "…"
 
 
-def _is_chain(price: ItemPrice, spoken: str) -> bool:
-    return price.chain_name.lower() == spoken or price.chain.lower().removesuffix("_no") == spoken
+def _is_chain(price: ItemPrice, words: list[str]) -> bool:
+    """Whether the chain is named anywhere in the words, as in "the Meny in town"."""
+    name = price.chain_name.lower().split()
+    found = any(words[i : i + len(name)] == name for i in range(len(words)))
+    return found or price.chain.lower().removesuffix("_no") in words
 
 
 def _answer(outcome: str, say: str, prices: list[ItemPrice], *, success: bool = True) -> dict[str, Any]:
