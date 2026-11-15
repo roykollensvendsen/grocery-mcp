@@ -8,6 +8,7 @@ own path, so nothing came back to sweep it. Hundreds of them filled ``/tmp``.
 """
 
 import importlib.util
+import os
 import pathlib
 import signal
 import subprocess
@@ -162,3 +163,80 @@ def test_a_second_stop_does_not_cut_the_cleanup_short():
 
 def test_a_second_stop_does_not_cut_the_quality_check_s_cleanup_short():
     assert all(_first_stop_leaves_the_rest_ignored(_ratchet()).values())
+
+
+def _run_folder(parent, name="run-left-by-a-killed-run"):
+    folder = parent / name
+    (folder / "basetemp").mkdir(parents=True)
+    (folder / "basetemp" / "inside.txt").write_text("x", encoding="utf-8")
+    return folder
+
+
+def test_a_dead_run_s_folder_is_swept_in_any_checkout(tmp_path, monkeypatch):
+    """A copy the quality check made is never run in again, so another checkout sweeps what it left."""
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    other = tmp_path / "kassalapp-mcp-mutate-1111bbbb"
+    _run_folder(other)
+    not_ours = _run_folder(tmp_path / "someone-else-mutate-2222cccc")
+    mutate.sweep()
+    assert not other.exists()
+    assert not_ours.exists()
+
+
+def test_a_run_still_going_is_never_swept(tmp_path, monkeypatch):
+    """Two runs at once, in one checkout or two: the one starting must not clear the other's folder."""
+    import fcntl  # noqa: PLC0415
+
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    going = _run_folder(mutate.MUTATE_TMP, "run-still-going")
+    held = os.open(going / ".lock", os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        mutate.sweep()
+        assert (going / "basetemp" / "inside.txt").exists()
+    finally:
+        os.close(held)
+
+
+def test_a_new_run_s_folder_is_locked_before_it_takes_a_run_s_name(tmp_path, monkeypatch):
+    """A sweep in between would see a run's name with no lock held, and remove it."""
+    import fcntl  # noqa: PLC0415
+
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    named_when_locked = []
+    real_flock = fcntl.flock
+
+    def flock(fd, how):
+        named_when_locked.append(sorted(p.name for p in mutate.MUTATE_TMP.glob("run-*")))
+        return real_flock(fd, how)
+
+    monkeypatch.setattr(mutate.fcntl, "flock", flock)
+    folder, lock = mutate.start_run_folder()
+    try:
+        assert named_when_locked == [[]]
+        assert folder.name.startswith("run-")
+    finally:
+        os.close(lock)
+
+
+def test_pytest_s_own_clearing_never_takes_a_running_run_s_lock(tmp_path):
+    """When it starts, pytest empties the folder given as --basetemp, so the lock must sit beside it."""
+    project = _project(tmp_path, HANGS)
+    running = subprocess.Popen([sys.executable, str(_runner(project, tmp_path))], text=True)
+    source = project / "src/code.py"
+    deadline = time.monotonic() + 30
+    while "x = 2" not in source.read_text(encoding="utf-8"):
+        assert time.monotonic() < deadline, "the run never switched the rule off"
+        time.sleep(0.05)
+    time.sleep(2)  # its suite has started, and pytest has cleared its basetemp
+    try:
+        mutate = _mutate()
+        mutate.MUTATE_TMP = tmp_path / "mutate-tmp"
+        mutate.sweep()
+        assert list((tmp_path / "mutate-tmp").glob("run-*")), "a sweep removed a run still going"
+    finally:
+        running.send_signal(signal.SIGTERM)
+        running.wait(timeout=30)

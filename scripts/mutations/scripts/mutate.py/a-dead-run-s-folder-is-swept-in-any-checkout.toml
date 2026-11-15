@@ -1,0 +1,5 @@
+[[rule]]
+name = "a dead run's folder is swept in any checkout"
+file = "scripts/mutate.py"
+find = '^    for checkout in _checkouts\(\):$'
+replace = 'for checkout in [MUTATE_TMP]:'

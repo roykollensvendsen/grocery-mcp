@@ -1,0 +1,5 @@
+[[rule]]
+name = "a run still going is never swept"
+file = "scripts/mutate.py"
+find = '^            return False  # a run still going holds its lock$'
+replace = 'return True'
