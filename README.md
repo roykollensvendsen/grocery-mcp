@@ -79,6 +79,10 @@ uv run pytest -q               # behaviour
 uv run python scripts/mutate.py  # that each rule's own test can fail
 ```
 
+Only one mutation run goes at a time in a checkout. A run that was killed
+can leave a source file with a rule switched off. The next run puts it back,
+or `uv run python scripts/mutate.py --repair-only` does only that.
+
 `CONTRIBUTING.md` says what each one is for, and
 [`decisions/`](decisions/README.md) records the choices that shaped them,
 including how a change is made here.
