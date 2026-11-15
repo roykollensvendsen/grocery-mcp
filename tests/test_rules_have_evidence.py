@@ -32,7 +32,7 @@ def _mutate():
 
 #: This project's own scripts. The scaffold's tools, such as mutate.py, carry rules
 #: of their own, and those are guarded where the scaffold is kept, not here.
-OWN_SCRIPTS = (ROOT / "scripts/private_data_scan.py",)
+OWN_SCRIPTS = (ROOT / "scripts/private_data_scan.py", ROOT / "scripts/ratchet.py")
 
 
 def marked_rules() -> set[str]:
