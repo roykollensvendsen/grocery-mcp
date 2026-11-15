@@ -30,7 +30,7 @@ ROOT = pathlib.Path(__file__).parent.parent
 # project's own claims, so their examples are nobody here's to run.
 SKIP = ("evidence", "references", ".venv", "node_modules")
 LOOKS_LIKE_A_COMMAND = re.compile(
-    r"^\s*\$?\s*(kassalapp-mcp|uv |git |pytest|python|committed|ruff|mypy)\b", re.MULTILINE
+    r"^\s*\$?\s*(grocery-mcp|uv |git |pytest|python|committed|ruff|mypy)\b", re.MULTILINE
 )
 NOT_RUN = re.compile(r"<!--\s*not run:\s*(.+?)\s*-->\s*$")
 
@@ -83,7 +83,7 @@ def test_the_documentation_shows_at_least_one_command():
     assert CASES, "no ```console block anywhere; the examples were removed or mislabelled"
 
 
-@pytest.mark.skipif(shutil.which("kassalapp-mcp") is None, reason="the command is not installed")
+@pytest.mark.skipif(shutil.which("grocery-mcp") is None, reason="the command is not installed")
 @pytest.mark.parametrize(("page", "command", "expected"), CASES, ids=[c[1][:40] for c in CASES])
 def test_a_documented_command_prints_what_the_page_says(page: str, command: str, expected: str):
     r = subprocess.run(command, shell=True, capture_output=True, text=True, cwd=ROOT, check=False)  # noqa: S602
@@ -114,5 +114,5 @@ def test_every_verb_the_command_has_appears_in_a_worked_example():
     Delete this test for a project that is not a command-line tool.
     """
     documented = " ".join(command for _, command, _ in CASES)
-    missing = [v for v in COMMANDS if f"kassalapp-mcp {v}" not in documented and f" {v} " not in documented]
+    missing = [v for v in COMMANDS if f"grocery-mcp {v}" not in documented and f" {v} " not in documented]
     assert not missing, f"no run example uses: {', '.join(missing)}"

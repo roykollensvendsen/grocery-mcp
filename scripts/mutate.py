@@ -56,7 +56,7 @@ RECOVERY = ROOT / "scripts/.mutate-recovery.json"
 #: ends. Outside the checkout, where a test making a git repository of its own would
 #: find this one instead; named after the checkout, so two never sweep each other's.
 MUTATE_TMP = pathlib.Path(tempfile.gettempdir()) / (
-    "kassalapp-mcp-mutate-" + hashlib.sha256(str(ROOT).encode()).hexdigest()[:8]
+    "grocery-mcp-mutate-" + hashlib.sha256(str(ROOT).encode()).hexdigest()[:8]
 )
 
 

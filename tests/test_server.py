@@ -112,7 +112,7 @@ def test_a_failure_inside_the_plugin_is_logged_without_the_words(caplog):
 
     with caplog.at_level("ERROR"):
         answer = _call(build_server(Broken()), "grocery_price", {"product": "fjellmelk lett 1 l"})
-    assert answer["say"].startswith("That went wrong inside kassalapp-mcp.")
+    assert answer["say"].startswith("That went wrong inside grocery-mcp.")
     assert "RuntimeError" in caplog.text
     assert "fjellmelk" not in caplog.text
 
