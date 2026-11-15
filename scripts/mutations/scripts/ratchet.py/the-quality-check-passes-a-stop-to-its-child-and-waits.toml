@@ -1,0 +1,6 @@
+[[rule]]
+name = "the quality check passes a stop to its child and waits"
+file = "scripts/ratchet.py"
+find = '^            child\.wait\(\)$'
+occurrence = 2
+replace = 'pass'
