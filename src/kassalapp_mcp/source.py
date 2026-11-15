@@ -68,7 +68,14 @@ class PriceSource(Protocol):
         ...
 
     def prices(self, products: list[Product]) -> list[ItemPrice]:
-        """Each chain's latest price for each product."""
+        """Each chain's latest price for each product.
+
+        A product given by barcode alone, with an empty name, gets its name from the source.
+        """
+        ...
+
+    def remember(self, words: str, product: Product) -> None:
+        """Keep the product chosen for these words, if the source keeps anything."""
         ...
 
 
@@ -130,6 +137,8 @@ class KassalappSource:
                 product = by_ean.get(str(entry["ean"]))
                 if product is None:
                     continue
+                if not product.name:
+                    product = Product(product.ean, str(entry.get("name") or product.ean))
                 found.extend(
                     ItemPrice(
                         product=product,
@@ -143,6 +152,9 @@ class KassalappSource:
                     if store.get("current_price") is not None
                 )
         return found
+
+    def remember(self, words: str, product: Product) -> None:
+        """Kassalapp itself keeps nothing; the cache in front of it does."""
 
     def _headers(self) -> dict[str, str]:
         key = _read_key(self._key)

@@ -33,8 +33,8 @@ def key_file(tmp_path):
 
 def test_find_gives_each_product_the_words_could_mean(fake, key_file):
     source = KassalappSource(fake.client(), key_file)
-    found = source.find("fjellmelk lett")
-    assert found == [LETT]
+    found = source.find("bergkaffe")
+    assert found == [Product("7000000000055", "Bergkaffe filtermalt 500 g")]
 
 
 def test_find_asks_kassalapp_for_products_with_a_barcode_once_each(fake, key_file):

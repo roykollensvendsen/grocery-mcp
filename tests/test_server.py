@@ -40,13 +40,13 @@ def test_the_tool_opens_with_a_whole_sentence_the_app_shows_uncut():
 
 
 def test_the_tool_answers_with_the_sentence_to_read_aloud():
-    answer = _call(_server(), "grocery_price", {"product": "fjellmelk lett", "chain": "Meny"})
+    answer = _call(_server(), "grocery_price", {"product": "fjellmelk lett 1 l", "chain": "Meny"})
     assert answer["say"].startswith("Fjellmelk lett 1 l costs 26.90 at Meny, checked today.")
 
 
 def test_a_simulated_answer_says_so():
     server = _server(simulated=True)
-    answer = _call(server, "grocery_price", {"product": "fjellmelk lett"})
+    answer = _call(server, "grocery_price", {"product": "fjellmelk lett 1 l"})
     assert answer["say"].startswith("Simulated: ")
     assert answer["simulated"] is True
     assert server.instructions.startswith("SIMULATED")
@@ -59,19 +59,19 @@ def test_every_tool_answers_with_a_sentence_even_when_it_fails():
 
     fake = FakeKassalapp(today=TODAY)
     fake.transport = lambda: httpx.MockTransport(unreachable)
-    answer = _call(_server(fake), "grocery_price", {"product": "fjellmelk lett"})
+    answer = _call(_server(fake), "grocery_price", {"product": "fjellmelk lett 1 l"})
     assert answer["success"] is False
     assert answer["say"] == "Kassalapp did not answer; try again in a minute."
 
 
 def test_the_command_line_answers_one_price_question_from_the_simulation(capsys):
-    assert main(["price", "fjellmelk lett", "--chain", "Meny", "--simulate"]) == 0
+    assert main(["price", "fjellmelk lett 1 l", "--chain", "Meny", "--simulate"]) == 0
     assert capsys.readouterr().out.startswith("Simulated: Fjellmelk lett 1 l costs 26.90 at Meny")
 
 
 def test_search_words_are_never_logged(caplog):
     caplog.set_level("DEBUG")
-    _call(_server(), "grocery_price", {"product": "fjellmelk lett"})
+    _call(_server(), "grocery_price", {"product": "fjellmelk lett 1 l"})
     assert "fjellmelk" not in caplog.text
     assert "7000000000017" not in caplog.text
 

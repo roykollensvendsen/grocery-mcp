@@ -9,18 +9,27 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, Any
 
-from kassalapp_mcp.source import KeyRefusedError, NotSetUpError, SearchTooShortError, SlowDownError
+from kassalapp_mcp.cache import normalised
+from kassalapp_mcp.source import (
+    KeyRefusedError,
+    NotSetUpError,
+    Product,
+    SearchTooShortError,
+    SlowDownError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from kassalapp_mcp.source import ItemPrice, PriceSource, Product
+    from kassalapp_mcp.source import ItemPrice, PriceSource
 
 #: Kassalapp calls a price out of date when it has not been checked for this long.
 STALE_AFTER = dt.timedelta(days=14)
 #: The most products named in one question, and the most chains in one answer.
 MOST_CHOICES = 3
 MOST_CHAINS = 3
+#: A barcode, as the voice may pass back one of the choices it was offered.
+BARCODE_DIGITS = range(8, 15)
 #: Chains Kassalapp no longer fetches, by the words a person would use for them.
 NOT_FETCHED = ("kiwi", "rema", "coop", "extra", "prix", "obs", "mega")
 NOT_FETCHED_SAID = "No current prices from Kiwi, REMA or Coop."
@@ -44,6 +53,8 @@ class PriceAnswers:
         self._source = source
         self._today = today
         self._said_per_chain = False
+        #: The words of the last question that asked "which one", and what it offered.
+        self._asked: tuple[str, list[Product]] | None = None
 
     def grocery_price(self, product: str, chain: str | None = None) -> dict[str, Any]:
         """The price of a product at one chain, or at every chain that has it."""
@@ -75,24 +86,51 @@ class PriceAnswers:
     def _resolved(
         self, words: str, build: Callable[[Product, list[ItemPrice]], dict[str, Any]]
     ) -> dict[str, Any]:
-        found = self._source.find(words)
-        if not found:
-            return _refused("not_found", f"Kassalapp has no product called {words}.")
-        # RULE: several matches give a question never a guess
-        if len(found) > 1:
-            choices = [p.name for p in found[:MOST_CHOICES]]
-            return {
-                "success": False,
-                "outcome": "ask",
-                "say": f"Which one: {_either(choices)}?",
-                "choices": choices,
-            }
-        [only] = found
-        answer = build(only, self._source.prices([only]))
+        chosen = self._chosen(words)
+        if isinstance(chosen, dict):
+            return chosen
+        prices = self._source.prices([chosen])
+        if not chosen.name:
+            if not prices:
+                return _refused("not_found", f"Kassalapp has no product with the barcode {words}.")
+            chosen = prices[0].product
+        self._keep(words, chosen)
+        answer = build(chosen, prices)
         if not self._said_per_chain:
             answer["say"] += " " + PER_CHAIN
             self._said_per_chain = True
         return answer
+
+    def _chosen(self, words: str) -> Product | dict[str, Any]:
+        """The one product the words mean, or the answer that asks which."""
+        spoken = words.strip()
+        if spoken.isdigit() and len(spoken) in BARCODE_DIGITS:
+            offered = self._asked[1] if self._asked else []
+            return next((p for p in offered if p.ean == spoken), Product(spoken, ""))
+        found = self._source.find(words)
+        if not found:
+            return _refused("not_found", f"Kassalapp has no product called {words}.")
+        # RULE: answering an offered choice gives a price never the question again
+        exact = [p for p in found if normalised(p.name) == normalised(words)]
+        if len(found) == 1 or len(exact) == 1:
+            return found[0] if len(found) == 1 else exact[0]
+        # RULE: several matches give a question never a guess
+        offered = found[:MOST_CHOICES]
+        self._asked = (words, offered)
+        return {
+            "success": False,
+            "outcome": "ask",
+            "say": f"Which one: {_either([p.name for p in offered])}?",
+            "choices": [{"name": p.name, "ean": p.ean} for p in offered],
+        }
+
+    def _keep(self, words: str, chosen: Product) -> None:
+        """Remember a chosen product under these words, and under the question that offered it."""
+        if self._asked and any(p.ean == chosen.ean for p in self._asked[1]):
+            self._source.remember(self._asked[0], chosen)
+            self._asked = None
+        if not words.strip().isdigit():
+            self._source.remember(words, chosen)
 
     def _cheapest(self, product: Product, prices: list[ItemPrice]) -> dict[str, Any]:
         # RULE: a stale price is never the cheapest
