@@ -2,6 +2,7 @@
 
 import datetime as dt
 
+import httpx
 import pytest
 
 from kassalapp_mcp.answers import PriceAnswers
@@ -153,3 +154,18 @@ def test_remembered_words_are_forgotten_after_ninety_days_unused(fake):
     clock.at += dt.timedelta(days=91)
     source.find("bergkaffe")
     assert _calls(fake, "/products") == 2
+
+
+def test_an_old_price_answers_when_kassalapp_cannot_be_reached(fake, tmp_path):
+    clock = Clock(dt.datetime(2026, 11, 14, 12, 0, tzinfo=OSLO))
+    path = tmp_path / "cache.sqlite"
+    first = _cached(fake, clock, path).prices([LETT])
+    clock.at += dt.timedelta(hours=7)
+
+    def unreachable(request):
+        message = "no route"
+        raise httpx.ConnectError(message, request=request)
+
+    client = httpx.Client(base_url=fake.client().base_url, transport=httpx.MockTransport(unreachable))
+    cut_off = CachedSource(KassalappSource(client, lambda: FAKE_KEY), path, now=clock)
+    assert cut_off.prices([LETT]) == first
