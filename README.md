@@ -4,8 +4,10 @@ Grocery prices per chain, by voice: an MCP server and claude-voice plugin.
 Kassalapp is its first price source.
 
 It was called kassalapp-mcp. The old command still works while the voice
-bridge starts it by that name. The key, the cache and the private list keep
-their `kassalapp-mcp` folders, as they belong to the Kassalapp source.
+bridge starts it by that name. It stays until the bridge has a
+`[plugins.grocery]` entry and Roy has approved it; a later change removes it.
+The key, the cache and the private list keep their `kassalapp-mcp` folders, as
+they belong to the Kassalapp source.
 
 It answers two questions, by voice: what a grocery costs at each chain, and
 where it is cheapest. Every answer says how old the price is. It only reads
