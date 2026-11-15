@@ -66,6 +66,8 @@ class FakeKassalapp:
     retry_after_header: bool = True
     #: Calls left this minute, as the headers say; None leaves the headers out.
     remaining: int | None = LIMIT_PER_MINUTE
+    #: Set to an HTTP status, such as 503, to answer every call with that error.
+    fail_with: int | None = None
     #: Headers the real service might add one day, such as a daily limit.
     extra_headers: dict[str, str] = field(default_factory=dict)
     requests: list[httpx.Request] = field(default_factory=list)
@@ -91,6 +93,8 @@ class FakeKassalapp:
         self.requests.append(request)
         if request.headers.get("authorization") != f"Bearer {FAKE_KEY}":
             return httpx.Response(401, json={"message": "Unauthenticated."})
+        if self.fail_with is not None:
+            return httpx.Response(self.fail_with, json={"message": "Service Unavailable"})
         if self.retry_after is not None:
             wait = {"Retry-After": str(self.retry_after)} if self.retry_after_header else {}
             return httpx.Response(429, headers=wait)
