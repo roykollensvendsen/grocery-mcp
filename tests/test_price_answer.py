@@ -47,7 +47,9 @@ def test_several_matches_give_a_question_never_a_guess(answers, fake):
     assert answer["outcome"] == "ask"
     assert answer["say"].startswith("Which one:")
     assert len(answer["choices"]) == 3
-    assert not any(r.url.path.endswith("prices-bulk") for r in fake.requests)
+    # No price is said before a choice. One bulk call ranks every match, most sold first.
+    assert "costs" not in answer["say"]
+    assert sum(r.url.path.endswith("prices-bulk") for r in fake.requests) == 1
 
 
 def test_kiwi_is_said_to_have_no_current_price(answers):

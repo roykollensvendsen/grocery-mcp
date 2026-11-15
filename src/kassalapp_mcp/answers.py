@@ -10,6 +10,8 @@ import datetime as dt
 import unicodedata
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from kassalapp_mcp.cache import normalised
 from kassalapp_mcp.source import (
     KeyRefusedError,
@@ -123,7 +125,7 @@ class PriceAnswers:
         if len(found) == 1 or len(exact) == 1:
             return found[0] if len(found) == 1 else exact[0]
         # RULE: several matches give a question never a guess
-        offered = found[:MOST_CHOICES]
+        offered = self._most_sold_first(found)[:MOST_CHOICES]
         self._asked = (words, offered)
         return {
             "success": False,
@@ -131,6 +133,26 @@ class PriceAnswers:
             "say": f"Which one: {_either([spoken(p.name) for p in offered])}?",
             "choices": [{"name": p.name, "ean": p.ean} for p in offered],
         }
+
+    def _most_sold_first(self, found: list[Product]) -> list[Product]:
+        """The matches, those sold now in the most chains first, ties in Kassalapp's order.
+
+        Kassalapp's order says how well the words match, so a bare "lettmelk" can put
+        an organic line sold in one chain before the milk every chain sells. One bulk
+        price call counts the chains; with the cache, it also answers the price asked next.
+        """
+        try:
+            prices = self._source.prices(found)
+        except (SlowDownError, httpx.HTTPError):
+            # Kassalapp's own order still makes a fair question.
+            # RULE: a failed ranking still asks the question
+            return found
+        chains: dict[str, set[str]] = {p.ean: set() for p in found}
+        for price in prices:
+            if self._current(price):
+                chains.setdefault(price.product.ean, set()).add(price.chain)
+        # RULE: the choices are offered most sold first
+        return sorted(found, key=lambda p: -len(chains[p.ean]))
 
     def _keep(self, words: str, chosen: Product) -> None:
         """Remember a chosen product under these words, and under the question that offered it."""

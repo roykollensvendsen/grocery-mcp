@@ -1,0 +1,5 @@
+[[rule]]
+name = "a failed ranking still asks the question"
+file = "src/kassalapp_mcp/answers.py"
+find = '^        except \(SlowDownError, httpx\.HTTPError\):$'
+replace = '        except ZeroDivisionError:'
