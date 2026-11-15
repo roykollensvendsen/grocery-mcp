@@ -27,6 +27,7 @@ import os
 import pathlib
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -177,6 +178,27 @@ def sweep() -> None:
         _remove(left)
 
 
+def stop_cleanly_when_killed() -> None:
+    """Make a plain kill stop this script as Ctrl-C does, so every clean-up still runs.
+
+    Python runs ``finally`` blocks and removes temporary folders on Ctrl-C, but a
+    plain ``kill`` (SIGTERM) ended it at once, leaving them behind.
+    """
+
+    def stop(signum: int, _frame: object) -> None:
+        raise SystemExit(128 + signum)
+
+    # RULE: a stopped mutation run still puts everything back
+    signal.signal(signal.SIGTERM, stop)
+
+
+def start() -> None:
+    """Get ready to run: stop cleanly if killed, and clear up after a run that was not."""
+    stop_cleanly_when_killed()
+    repair()
+    sweep()
+
+
 def repair() -> None:
     """Put back a file an earlier run was killed in the middle of mutating."""
     if not RECOVERY.is_file():
@@ -240,6 +262,10 @@ def run_suite() -> tuple[int, list[str]]:
     finally:
         # RULE: a suite run leaves no temporary files behind
         _remove(temporary)
+        # The run's own folder goes too, once no other run in this checkout is using it.
+        # RULE: a mutation run leaves no folder of its own behind
+        with contextlib.suppress(OSError):
+            MUTATE_TMP.rmdir()
     # --color=no covers the usual run; stripping covers a configuration that
     # turns colour back on, which would otherwise make every kill unattributable.
     # RULE: a coloured failure line is still attributed
@@ -276,8 +302,7 @@ def main() -> int:
     parser.add_argument("--write", type=pathlib.Path, help="write the evidence table here")
     args = parser.parse_args()
 
-    repair()
-    sweep()
+    start()
     rules = all_rows()
     if (empty := nothing_to_check(rules)) is not None:
         return empty
