@@ -20,6 +20,7 @@ import os
 import pathlib
 import re
 import tempfile
+import threading
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
@@ -55,6 +56,9 @@ class Quota:
         """Keep the usage files in ``state_dir``, or nowhere when it is None."""
         self._dir = state_dir
         self._now = now
+        # A question past its deadline carries on in a worker while the next one runs,
+        # so two may count at once. One process owns these files.
+        self._lock = threading.RLock()
         self._keep_lines = keep_lines
         self._calls: collections.deque[dt.datetime] = collections.deque()
         self._headers: dict[str, str] = {}
@@ -71,61 +75,67 @@ class Quota:
 
     def before_call(self) -> None:
         """Refuse a call while Kassalapp has asked us to wait, or our own count is at the limit."""
-        now = self._now()
-        self._forget(now)
-        if len(self._calls) >= LIMIT_PER_MINUTE:
-            self._until = max(self._until or now, self._calls[0] + MINUTE)
-        # RULE: a 429 stops calls until retry after passes
-        if self._until is not None and now < self._until:
-            raise SlowDownError(math.ceil((self._until - now).total_seconds()))
+        with self._lock:
+            now = self._now()
+            self._forget(now)
+            if len(self._calls) >= LIMIT_PER_MINUTE:
+                self._until = max(self._until or now, self._calls[0] + MINUTE)
+            # RULE: a 429 stops calls until retry after passes
+            if self._until is not None and now < self._until:
+                raise SlowDownError(math.ceil((self._until - now).total_seconds()))
 
     def after_call(self, endpoint: str, response: httpx.Response) -> None:
         """Record one call, by its endpoint's template only."""
-        now = self._now()
-        self._calls.append(now)
-        self._headers = {k.lower(): v for k, v in response.headers.items() if k.lower().startswith(_HEADER)}
-        self._seen_at = now
-        wait = response.headers.get("retry-after", "")
-        if response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-            self._count("429s")
-            self._until = now + dt.timedelta(seconds=int(wait)) if wait.isdigit() else _next_minute(now)
-        elif self._number("remaining") == 0:
-            self._until = now + dt.timedelta(seconds=int(wait)) if wait.isdigit() else _next_minute(now)
-        self._count("calls")
-        line = {
-            "at": now.isoformat(),
-            "endpoint": endpoint,
-            "status": response.status_code,
-            "remaining": self._number("remaining"),
-            "from_cache": False,
-        }
-        self._append(json.dumps(line))
-        self._warn(now)
-        self._save()
+        with self._lock:
+            now = self._now()
+            self._calls.append(now)
+            self._headers = {
+                k.lower(): v for k, v in response.headers.items() if k.lower().startswith(_HEADER)
+            }
+            self._seen_at = now
+            wait = response.headers.get("retry-after", "")
+            if response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                self._count("429s")
+                self._until = now + dt.timedelta(seconds=int(wait)) if wait.isdigit() else _next_minute(now)
+            elif self._number("remaining") == 0:
+                self._until = now + dt.timedelta(seconds=int(wait)) if wait.isdigit() else _next_minute(now)
+            self._count("calls")
+            line = {
+                "at": now.isoformat(),
+                "endpoint": endpoint,
+                "status": response.status_code,
+                "remaining": self._number("remaining"),
+                "from_cache": False,
+            }
+            self._append(json.dumps(line))
+            self._warn(now)
+            self._save()
 
     def cache_hit(self) -> None:
         """Count a question the cache answered without a call."""
-        self._count("cache_hits")
-        self._save()
+        with self._lock:
+            self._count("cache_hits")
+            self._save()
 
     def status(self) -> dict[str, Any]:
         """The quota as the plugin's status shows it."""
-        now = self._now()
-        self._forget(now)
-        today = self._days.get(now.date().isoformat(), {})
-        backing = self._until is not None and now < self._until
-        return {
-            "limit_per_min": self._number("limit"),
-            "remaining": self._number("remaining"),
-            "seen_at": self._seen_at.isoformat() if self._seen_at else None,
-            "calls_last_min": len(self._calls),
-            "calls_today": today.get("calls", 0),
-            "cache_hits_today": today.get("cache_hits", 0),
-            "429s_today": today.get("429s", 0),
-            "level": "backing_off" if backing else ("warn" if self._low() else "ok"),
-            "backing_off_until": self._until.isoformat() if backing and self._until else None,
-            "headers": dict(self._headers),
-        }
+        with self._lock:
+            now = self._now()
+            self._forget(now)
+            today = self._days.get(now.date().isoformat(), {})
+            backing = self._until is not None and now < self._until
+            return {
+                "limit_per_min": self._number("limit"),
+                "remaining": self._number("remaining"),
+                "seen_at": self._seen_at.isoformat() if self._seen_at else None,
+                "calls_last_min": len(self._calls),
+                "calls_today": today.get("calls", 0),
+                "cache_hits_today": today.get("cache_hits", 0),
+                "429s_today": today.get("429s", 0),
+                "level": "backing_off" if backing else ("warn" if self._low() else "ok"),
+                "backing_off_until": self._until.isoformat() if backing and self._until else None,
+                "headers": dict(self._headers),
+            }
 
     def _low(self) -> bool:
         remaining = self._number("remaining")
