@@ -16,6 +16,7 @@ import json
 import re
 import sqlite3
 import threading
+import zoneinfo
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -32,6 +33,8 @@ KEEP_PRICE = dt.timedelta(hours=6)
 #: Before this hour the day's new prices have not started; until the next they may be arriving.
 UPDATE_STARTS = dt.time(9, 0)
 UPDATE_SETTLED = dt.time(10, 0)
+#: The zone of those hours: Kassalapp's own, as its FAQ says "norsk tid".
+KASSALAPP_ZONE = zoneinfo.ZoneInfo("Europe/Oslo")
 _UNITS = {"liter": "l", "litre": "l", "l": "l", "ml": "ml", "gram": "g", "g": "g", "kilo": "kg", "kg": "kg"}
 _AMOUNT = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*(" + "|".join(sorted(_UNITS, key=len, reverse=True)) + r")\b")
 
@@ -43,10 +46,15 @@ def normalised(words: str) -> str:
 
 
 def kept_until(fetched: dt.datetime) -> dt.datetime:
-    """When a price fetched at ``fetched`` must be fetched again."""
+    """When a price fetched at ``fetched`` must be fetched again, in ``fetched``'s own zone.
+
+    Kassalapp's daily update runs on Norwegian time, whatever the machine's own zone is.
+    """
+    oslo = fetched.astimezone(KASSALAPP_ZONE)
     # RULE: a price fetched before nine is held only until ten
-    if fetched.timetz().replace(tzinfo=None) < UPDATE_STARTS:
-        return fetched.replace(hour=UPDATE_SETTLED.hour, minute=0, second=0, microsecond=0)
+    if oslo.time() < UPDATE_STARTS:
+        settled = oslo.replace(hour=UPDATE_SETTLED.hour, minute=0, second=0, microsecond=0)
+        return settled.astimezone(fetched.tzinfo)
     return fetched + KEEP_PRICE
 
 

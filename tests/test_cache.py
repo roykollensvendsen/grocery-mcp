@@ -5,7 +5,7 @@ import datetime as dt
 import pytest
 
 from kassalapp_mcp.answers import PriceAnswers
-from kassalapp_mcp.cache import CachedSource, normalised
+from kassalapp_mcp.cache import CachedSource, kept_until, normalised
 from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp
 from kassalapp_mcp.source import KassalappSource, Product
 
@@ -118,3 +118,24 @@ def test_the_cache_survives_a_restart(fake, tmp_path):
 def test_spoken_words_are_normalised():
     assert normalised("  Tine   LETTMELK 1 liter ") == "tine lettmelk 1l"
     assert normalised("kaffe 500 gram") == "kaffe 500g"
+
+
+def test_the_morning_rule_follows_norwegian_time_on_a_utc_machine():
+    utc = dt.UTC
+    # 07:30 UTC in November is 08:30 in Oslo: before the update, so kept until 10:00 Oslo.
+    november = kept_until(dt.datetime(2026, 11, 14, 7, 30, tzinfo=utc))
+    assert november == dt.datetime(2026, 11, 14, 9, 0, tzinfo=utc)
+    # 08:30 UTC in November is 09:30 in Oslo: after the start, so six hours.
+    assert kept_until(dt.datetime(2026, 11, 14, 8, 30, tzinfo=utc)) == dt.datetime(
+        2026, 11, 14, 14, 30, tzinfo=utc
+    )
+
+
+def test_the_morning_rule_follows_summer_time():
+    utc = dt.UTC
+    # 06:30 UTC in July is 08:30 in Oslo, two hours ahead in summer.
+    assert kept_until(dt.datetime(2026, 7, 1, 6, 30, tzinfo=utc)) == dt.datetime(2026, 7, 1, 8, 0, tzinfo=utc)
+    # 07:30 UTC in July is 09:30 in Oslo: six hours.
+    assert kept_until(dt.datetime(2026, 7, 1, 7, 30, tzinfo=utc)) == dt.datetime(
+        2026, 7, 1, 13, 30, tzinfo=utc
+    )
