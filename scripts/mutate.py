@@ -500,7 +500,7 @@ def check_the_package() -> None:
     if not packages:
         empty = (
             f"There is no package in {source} to check, so this run would measure nothing of its own."
-            " Run it from the plugin's checkout, where src/kassalapp_mcp/ is."
+            " Run it from the plugin's checkout, where src/grocery_mcp/ is."
         )
         # RULE: a mutation run refuses a checkout with no package
         raise SystemExit(empty)
