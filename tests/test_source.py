@@ -87,3 +87,21 @@ def test_the_source_only_reads(fake, key_file):
     source.prices([LETT])
     paths = {(r.method, r.url.path) for r in fake.requests}
     assert paths == {("GET", "/api/v1/products"), ("POST", "/api/v1/products/prices-bulk")}
+
+
+def test_a_key_file_others_can_read_is_warned_about_once(fake, key_file, caplog):
+    key_file.chmod(0o644)
+    source = KassalappSource(fake.client(), key_file)
+    with caplog.at_level("WARNING", logger="kassalapp_mcp.source"):
+        source.find("fjellmelk")
+        source.find("fjellmelk")
+    assert len(caplog.records) == 1
+    assert "chmod 600" in caplog.text
+    assert FAKE_KEY not in caplog.text
+
+
+def test_a_key_file_only_its_owner_can_read_is_not_warned_about(fake, key_file, caplog):
+    key_file.chmod(0o600)
+    with caplog.at_level("WARNING", logger="kassalapp_mcp.source"):
+        KassalappSource(fake.client(), key_file).find("fjellmelk")
+    assert caplog.records == []

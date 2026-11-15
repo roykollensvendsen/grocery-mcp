@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import pathlib
+import stat
 from dataclasses import dataclass
 from decimal import Decimal
 from http import HTTPStatus
@@ -27,6 +28,8 @@ BASE_URL = "https://kassal.app/api/v1"
 for _library in ("httpx", "httpcore"):
     # RULE: search words are never logged
     logging.getLogger(_library).setLevel(logging.WARNING)
+
+log = logging.getLogger(__name__)
 
 #: Limits on one call: two seconds to connect, four for each other phase. The whole
 #: question has its own deadline as well, in the server.
@@ -115,6 +118,7 @@ class KassalappSource:
         """
         self._client = client
         self._key = key
+        self._key_checked = False
         self._quota = quota
 
     def find(self, words: str) -> list[Product]:
@@ -150,6 +154,9 @@ class KassalappSource:
 
     def _headers(self) -> dict[str, str]:
         key = _read_key(self._key)
+        if isinstance(self._key, pathlib.Path) and key and not self._key_checked:
+            self._key_checked = True
+            _warn_if_shared(self._key)
         # RULE: without a key nothing is sent
         if not key:
             raise NotSetUpError
@@ -205,6 +212,13 @@ def _store_price(product: Product, store: object) -> ItemPrice | None:
         price=price,
         seen_at=_date(store.get("last_checked")),
     )
+
+
+def _warn_if_shared(path: pathlib.Path) -> None:
+    """Warn, once, when others on the machine may read the key file."""
+    mode = stat.S_IMODE(path.stat().st_mode)
+    if mode & (stat.S_IRWXG | stat.S_IRWXO):
+        log.warning("The key file %s can be read by others (mode %o); run: chmod 600 %s", path, mode, path)
 
 
 def _read_key(key: pathlib.Path | Callable[[], str]) -> str:
