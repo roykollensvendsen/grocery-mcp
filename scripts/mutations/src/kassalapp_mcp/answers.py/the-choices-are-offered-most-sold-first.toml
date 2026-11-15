@@ -1,0 +1,5 @@
+[[rule]]
+name = "the choices are offered most sold first"
+file = "src/kassalapp_mcp/answers.py"
+find = '^        return sorted\(found, key=lambda p: -len\(chains\[p\.ean\]\)\)$'
+replace = '        return found'

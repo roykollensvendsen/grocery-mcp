@@ -59,7 +59,9 @@ def test_chains_at_the_same_price_are_named_together(fake):
 def test_several_matches_for_cheapest_give_a_question_too(fake):
     answer = _answers(fake).grocery_cheapest("fjellmelk")
     assert answer["outcome"] == "ask"
-    assert not any(r.url.path.endswith("prices-bulk") for r in fake.requests)
+    # No price is said before a choice. One bulk call ranks every match, most sold first.
+    assert "costs" not in answer["say"]
+    assert sum(r.url.path.endswith("prices-bulk") for r in fake.requests) == 1
 
 
 def test_no_current_price_anywhere_is_said_plainly(fake):
