@@ -76,7 +76,7 @@ All checks passed!
 uv run ruff format --check .   # layout
 uv run mypy src                # types
 uv run pytest -q               # behaviour
-python scripts/mutate.py       # that each rule's own test can fail
+uv run python scripts/mutate.py  # that each rule's own test can fail
 ```
 
 `CONTRIBUTING.md` says what each one is for, and
