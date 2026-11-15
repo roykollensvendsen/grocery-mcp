@@ -1,0 +1,5 @@
+[[rule]]
+name = "a run trusts its folder only when it is really ours"
+file = "scripts/mutate.py"
+find = '^    if held\.st_mode & 0o077:$'
+replace = 'if False:'

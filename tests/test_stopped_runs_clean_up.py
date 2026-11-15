@@ -317,3 +317,53 @@ def test_a_folder_another_sweep_removed_first_is_passed_over(tmp_path, monkeypat
     monkeypatch.setattr(mutate.os, "open", open_after_the_other_sweep)
     mutate.sweep()  # passes over it, rather than fail the run
     assert not gone.exists()
+
+
+@pytest.mark.parametrize("planted", ["open to others", "a link", "a file"])
+def test_a_run_trusts_its_folder_only_when_it_is_really_ours(tmp_path, monkeypatch, planted):
+    """The folder's name is easy to guess in a /tmp everyone shares; what is planted there is refused."""
+    mutate = _mutate()
+    place = tmp_path / "kassalapp-mcp-mutate-0000aaaa"
+    monkeypatch.setattr(mutate, "MUTATE_TMP", place)
+    if planted == "open to others":
+        place.mkdir(mode=0o700)
+        place.chmod(0o755)
+    elif planted == "a link":
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir(mode=0o700)
+        place.symlink_to(elsewhere)
+    else:
+        place.write_text("x", encoding="utf-8")
+    with pytest.raises(SystemExit, match=str(place)) as refused:
+        mutate.start_run_folder()
+    assert "remove it if it is not yours" in str(refused.value)
+    assert not any(p.name.startswith(("run-", "starting-")) for p in tmp_path.rglob("*"))
+
+
+def test_a_run_s_own_folder_is_made_for_its_user_alone(tmp_path, monkeypatch):
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    folder, lock = mutate.start_run_folder()
+    try:
+        assert mutate.MUTATE_TMP.stat().st_mode & 0o777 == 0o700
+        assert folder.parent == mutate.MUTATE_TMP
+    finally:
+        os.close(lock)
+
+
+def test_ctrl_c_then_a_kill_still_puts_everything_back(tmp_path):
+    """GitHub cancels a job with SIGINT, then SIGTERM a moment later, while the clean-up runs."""
+    project = _project(tmp_path, HANGS)
+    running = subprocess.Popen([sys.executable, str(_runner(project, tmp_path))], text=True)
+    source = project / "src/code.py"
+    deadline = time.monotonic() + 30
+    while "x = 2" not in source.read_text(encoding="utf-8"):
+        assert time.monotonic() < deadline, "the run never switched the rule off"
+        time.sleep(0.05)
+    time.sleep(1)  # let its suite start
+    running.send_signal(signal.SIGINT)
+    time.sleep(0.05)
+    running.send_signal(signal.SIGTERM)
+    running.wait(timeout=30)
+    assert source.read_text(encoding="utf-8") == "# RULE: x is one\nx = 1\n"
+    assert not (tmp_path / "mutate-tmp").exists()
