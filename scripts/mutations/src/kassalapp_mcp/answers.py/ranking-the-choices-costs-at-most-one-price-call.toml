@@ -1,0 +1,5 @@
+[[rule]]
+name = "ranking the choices costs at most one price call"
+file = "src/kassalapp_mcp/answers.py"
+find = '^        ranked, rest = found\[:MOST_RANKED\], found\[MOST_RANKED:\]$'
+replace = '        ranked, rest = found, []'
