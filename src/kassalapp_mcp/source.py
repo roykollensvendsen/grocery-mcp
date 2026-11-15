@@ -191,7 +191,7 @@ def _read_key(key: pathlib.Path | Callable[[], str]) -> str:
     if not isinstance(key, pathlib.Path):
         return key().strip()
     try:
-        return key.read_text().strip()
+        return key.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
         return ""
 

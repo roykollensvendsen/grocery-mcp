@@ -161,12 +161,12 @@ class Quota:
         if self._dir is None:
             return
         path = self._dir / "usage.jsonl"
-        with path.open("a") as usage:
+        with path.open("a", encoding="utf-8") as usage:
             usage.write(line + "\n")
         self._lines += 1
         if self._lines > self._keep_lines:
-            newest = path.read_text().splitlines()[-(self._keep_lines // 2) :]
-            path.write_text("".join(x + "\n" for x in newest))
+            newest = path.read_text(encoding="utf-8").splitlines()[-(self._keep_lines // 2) :]
+            path.write_text("".join(x + "\n" for x in newest), encoding="utf-8")
             self._lines = len(newest)
 
     def _save(self) -> None:
@@ -218,7 +218,7 @@ class Quota:
         if self._dir is None:
             return ""
         try:
-            return (self._dir / name).read_text()
+            return (self._dir / name).read_text(encoding="utf-8")
         except FileNotFoundError:
             return ""
 
@@ -234,7 +234,7 @@ def _replace(path: pathlib.Path, text: str) -> None:
     """Write ``path`` whole, so a reader never sees half a file."""
     handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
-        with os.fdopen(handle, "w") as out:
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
             out.write(text)
         pathlib.Path(temporary).replace(path)
     except BaseException:
