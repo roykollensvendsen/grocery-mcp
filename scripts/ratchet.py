@@ -32,6 +32,7 @@ import ast
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -409,6 +410,20 @@ def base_levels(kept: Path | None, measure_base: Callable[[], dict[str, Any]]) -
     return measure_base()
 
 
+def stop_cleanly_when_killed() -> None:
+    """Make a plain kill stop this script as Ctrl-C does, so every clean-up still runs.
+
+    Python runs ``finally`` blocks and removes temporary folders on Ctrl-C, but a
+    plain ``kill`` (SIGTERM) ended it at once, leaving them behind.
+    """
+
+    def stop(signum: int, _frame: object) -> None:
+        raise SystemExit(128 + signum)
+
+    # RULE: a stopped quality check leaves no copy behind
+    signal.signal(signal.SIGTERM, stop)
+
+
 def measure_at(ref: str) -> dict[str, Any]:
     """Measure `ref` in a copy of it, with this ratchet, so both sides are measured alike.
 
@@ -439,6 +454,7 @@ def measure_at(ref: str) -> dict[str, Any]:
 
 def main() -> int:
     """Measure, or measure and compare with the base."""
+    stop_cleanly_when_killed()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("action", choices=("check", "measure"))
     parser.add_argument("--base", help="the git ref to compare with, usually origin/main")
