@@ -98,7 +98,7 @@ jobs:
         # picked before there is data is a guess with a gate on it.
         run: uv run pytest -q -p no:cacheprovider --strict-markers --cov
       # - name: The project's own check
-      #   run: uv run kassalapp-mcp check .
+      #   run: uv run grocery-mcp check .
 
   # Each `# RULE:` line switched off in turn: the test named after it must go red.
   mutations:

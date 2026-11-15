@@ -1,4 +1,4 @@
-"""Command line for kassalapp-mcp: serve the price tool, or ask one price."""
+"""Command line for grocery-mcp: serve the price tool, or ask one price."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def _state(state_dir: str | None) -> pathlib.Path:
 
 def main(argv: list[str] | None = None) -> int:
     """Parse arguments and dispatch. Returns a process exit code."""
-    parser = argparse.ArgumentParser(prog="kassalapp-mcp", description=__doc__, formatter_class=HELP)
+    parser = argparse.ArgumentParser(prog="grocery-mcp", description=__doc__, formatter_class=HELP)
     verbs = parser.add_subparsers(dest="command", required=True)
     serve = verbs.add_parser(
         formatter_class=HELP, name="serve", help="serve the price tool over stdio, for a voice session"

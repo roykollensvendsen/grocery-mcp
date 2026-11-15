@@ -1,1 +1,1 @@
-"""The kassalapp-mcp package."""
+"""The grocery-mcp package."""

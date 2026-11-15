@@ -8,8 +8,8 @@ reporting.
 
 <!-- not run: clones the repository the reader is already in -->
 ```
-git clone https://github.com/roykollensvendsen/kassalapp-mcp
-cd kassalapp-mcp
+git clone https://github.com/roykollensvendsen/grocery-mcp
+cd grocery-mcp
 uv sync --all-extras
 ```
 
@@ -84,7 +84,7 @@ force pushes and deletions are refused, history stays linear, and none of it is
 waived for administrators. That is a repository setting rather than a test,
 because a test that proves it would need a credential to pass and would fail for
 the wrong reasons. It is the one rule here enforced by something the suite
-cannot see. `python scripts/forge.py roykollensvendsen/kassalapp-mcp` in the `start-repo` skill is what
+cannot see. `python scripts/forge.py roykollensvendsen/grocery-mcp` in the `start-repo` skill is what
 applies it, and it says plainly when the forge refuses — branch protection needs
 a public repository or a paid plan.
 
