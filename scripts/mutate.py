@@ -184,7 +184,9 @@ def run_suite() -> tuple[int, list[str]]:
 def nothing_to_check(rules: list[dict[str, Any]]) -> int | None:
     """The exit code when there are no rows to run, or None when there are."""
     # RULE: an empty rule table is not a crash
-    # A scaffolded repository starts with no rules and no rows.
+    # No rules and no rows passes. Outside a test this is hard to reach: a fresh
+    # scaffold ships its own tools' rules, so it ships their rows too, and the
+    # next check fails closed.
     if not rules and not marked():
         print(f"no rules in {ROWS.relative_to(ROOT)} yet; add one file per rule the code enforces")  # noqa: T201
         return 0
