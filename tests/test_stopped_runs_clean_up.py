@@ -434,3 +434,39 @@ def test_a_sweep_stops_at_a_link_in_place_of_the_run_s_folder(tmp_path, monkeypa
     with pytest.raises(SystemExit, match=f"rm -r -- {place}"):
         mutate.sweep()
     assert left.is_dir()
+
+
+def _mutate_on(tmp_path, monkeypatch, argv):
+    """The mutation runner, pointed at an empty checkout in `tmp_path`."""
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "ROOT", tmp_path)
+    monkeypatch.setattr(mutate, "ROWS", tmp_path / "scripts/mutations")
+    monkeypatch.setattr(mutate, "RECOVERY", tmp_path / "recovery.json")
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    monkeypatch.setattr(sys, "argv", ["mutate.py", *argv])
+    (tmp_path / "code.py").write_text("x = 2\n", encoding="utf-8")
+    left = {"file": "code.py", "mutated": "x = 2\n", "original": "x = 1\n"}
+    mutate.RECOVERY.write_text(__import__("json").dumps(left), encoding="utf-8")
+    return mutate
+
+
+def test_only_one_mutation_run_goes_at_a_time_in_a_checkout(tmp_path, monkeypatch):
+    """A second run would repair, sweep and mutate the files the first is working on."""
+    mutate = _mutate_on(tmp_path, monkeypatch, [])
+    first = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        __import__("fcntl").flock(first, __import__("fcntl").LOCK_EX)
+        with pytest.raises(SystemExit, match="already going"):
+            mutate.main()
+    finally:
+        os.close(first)
+    assert (tmp_path / "code.py").read_text(encoding="utf-8") == "x = 2\n", "the first run's file was touched"
+    assert mutate.RECOVERY.exists()
+
+
+def test_repair_only_puts_back_what_a_killed_run_left_and_nothing_else(tmp_path, monkeypatch):
+    mutate = _mutate_on(tmp_path, monkeypatch, ["--repair-only"])
+    assert mutate.main() == 0
+    assert (tmp_path / "code.py").read_text(encoding="utf-8") == "x = 1\n"
+    assert not mutate.RECOVERY.exists()
+    assert not mutate.MUTATE_TMP.exists(), "it swept or started a run"

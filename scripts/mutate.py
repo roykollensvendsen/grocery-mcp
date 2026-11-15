@@ -457,12 +457,39 @@ def nothing_to_check(rules: list[dict[str, Any]]) -> int | None:
     return None
 
 
+def hold_checkout() -> int:
+    """Hold this checkout for one run, or stop: a second would mutate the first one's files."""
+    held = os.open(ROOT, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        # RULE: only one mutation run goes at a time in a checkout
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(held)
+        busy = f"a mutation run is already going in {ROOT}. Wait for it to end, then run again."
+        raise SystemExit(busy) from None
+    return held
+
+
 def main() -> int:
-    """Mutate every rule in turn, restore the tree, and report."""
+    """Hold the checkout, then check every rule, or only put back what a killed run left."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", type=pathlib.Path, help="write the evidence table here")
+    parser.add_argument(
+        "--repair-only", action="store_true", help="only put back a file a killed run left mutated"
+    )
     args = parser.parse_args()
+    held = hold_checkout()
+    try:
+        if args.repair_only:
+            repair()
+            return 0
+        return check_every_rule(args.write)
+    finally:
+        os.close(held)
 
+
+def check_every_rule(write: pathlib.Path | None) -> int:
+    """Mutate every rule in turn, restore the tree, and report."""
     start()
     rules = all_rows()
     if (empty := nothing_to_check(rules)) is not None:
@@ -514,8 +541,8 @@ def main() -> int:
     if lost:
         print("CHANGED WHILE MUTATED, so left as they are:", ", ".join(sorted(set(lost))))  # noqa: T201
         print("Edit the tree while this runs and the result is not about your code.")  # noqa: T201
-    if args.write:
-        args.write.write_text(report(results, survived, lucky))
+    if write:
+        write.write_text(report(results, survived, lucky))
     return 1 if survived or lucky or lost else 0
 
 
