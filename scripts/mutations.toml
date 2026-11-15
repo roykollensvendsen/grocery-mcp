@@ -110,3 +110,9 @@ name = "a name in a spoken sentence is one short line"
 file = "src/kassalapp_mcp/answers.py"
 find = 'line = " ".join\(printable.split\(\)\)'
 replace = 'line = printable'
+
+[[rule]]
+name = "a question answers within one deadline even when kassalapp is slow"
+file = "src/kassalapp_mcp/server.py"
+find = 'answer = work.result\(timeout=answer_within\)'
+replace = 'answer = work.result()'
