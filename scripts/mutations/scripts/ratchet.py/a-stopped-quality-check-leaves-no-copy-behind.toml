@@ -1,5 +1,5 @@
 [[rule]]
 name = "a stopped quality check leaves no copy behind"
 file = "scripts/ratchet.py"
-find = '^    signal\.signal\(signal\.SIGTERM, stop\)$'
+find = '^        signal\.signal\(each, stop\)$'
 replace = 'pass'

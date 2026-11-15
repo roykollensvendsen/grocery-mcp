@@ -74,8 +74,14 @@ def test_a_mutation_run_leaves_no_folder_of_its_own_behind(tmp_path):
     assert not (tmp_path / "mutate-tmp").exists()
 
 
-def test_a_stopped_mutation_run_still_puts_everything_back(tmp_path):
-    """Stopped while its suite runs, the run puts the file back and removes its folder."""
+@pytest.mark.parametrize(
+    "stop", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP], ids=["a kill", "Ctrl-C", "a closed terminal"]
+)
+def test_a_stopped_mutation_run_still_puts_everything_back(tmp_path, stop):
+    """Stopped while its suite runs, the run puts the file back and removes its folder.
+
+    GitHub cancels a job with SIGINT and then SIGTERM; a closed terminal sends SIGHUP.
+    """
     project = _project(tmp_path, HANGS)
     running = subprocess.Popen(
         [sys.executable, str(_runner(project, tmp_path))],
@@ -89,7 +95,7 @@ def test_a_stopped_mutation_run_still_puts_everything_back(tmp_path):
         assert time.monotonic() < deadline, "the run never switched the rule off"
         time.sleep(0.05)
     time.sleep(1)  # let its suite start
-    running.send_signal(signal.SIGTERM)
+    running.send_signal(stop)
     running.wait(timeout=30)
     assert source.read_text(encoding="utf-8") == "# RULE: x is one\nx = 1\n"
     assert not (tmp_path / "mutate-tmp").exists()
@@ -126,3 +132,33 @@ def test_a_stopped_quality_check_leaves_no_copy_behind(tmp_path):
     running.wait(timeout=30)
     assert not copy.exists()
     assert [p.name for p in tmp_path.iterdir()] == ["holder.py"]
+
+
+def _first_stop_leaves_the_rest_ignored(module):
+    """Install `module`'s stop handling, stop once, and say which stops are then ignored."""
+    stops = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    before = {each: signal.getsignal(each) for each in stops}
+    try:
+        module.stop_cleanly_when_killed()
+        with pytest.raises(SystemExit):
+            signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+        return {each: signal.getsignal(each) == signal.SIG_IGN for each in stops}
+    finally:
+        for each, handler in before.items():
+            signal.signal(each, handler)
+
+
+def _mutate():
+    spec = importlib.util.spec_from_file_location("mutate_stop", ROOT / "scripts/mutate.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_a_second_stop_does_not_cut_the_cleanup_short():
+    """GitHub sends a second stop soon after the first; it must not end the clean-up halfway."""
+    assert all(_first_stop_leaves_the_rest_ignored(_mutate()).values())
+
+
+def test_a_second_stop_does_not_cut_the_quality_check_s_cleanup_short():
+    assert all(_first_stop_leaves_the_rest_ignored(_ratchet()).values())

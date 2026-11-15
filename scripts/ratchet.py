@@ -410,18 +410,30 @@ def base_levels(kept: Path | None, measure_base: Callable[[], dict[str, Any]]) -
     return measure_base()
 
 
-def stop_cleanly_when_killed() -> None:
-    """Make a plain kill stop this script as Ctrl-C does, so every clean-up still runs.
+#: The stops from outside: Ctrl-C, a cancelled CI job (GitHub sends SIGINT, then SIGTERM),
+#: and a closed terminal.
+STOPS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 
-    Python runs ``finally`` blocks and removes temporary folders on Ctrl-C, but a
-    plain ``kill`` (SIGTERM) ended it at once, leaving them behind.
+
+def stop_cleanly_when_killed() -> None:
+    """Make every stop from outside end this script as Ctrl-C does, so every clean-up runs.
+
+    Python runs ``finally`` blocks and removes temporary folders on Ctrl-C, but a plain
+    ``kill`` or a closed terminal ended it at once, leaving them behind. After the first
+    stop, the rest are ignored, so the clean-up runs to its end.
     """
 
     def stop(signum: int, _frame: object) -> None:
+        # RULE: a second stop does not cut the quality check s cleanup short
+        for each in STOPS:
+            signal.signal(each, signal.SIG_IGN)
+        if signum == signal.SIGINT:
+            raise KeyboardInterrupt
         raise SystemExit(128 + signum)
 
     # RULE: a stopped quality check leaves no copy behind
-    signal.signal(signal.SIGTERM, stop)
+    for each in STOPS:
+        signal.signal(each, stop)
 
 
 def measure_at(ref: str) -> dict[str, Any]:
