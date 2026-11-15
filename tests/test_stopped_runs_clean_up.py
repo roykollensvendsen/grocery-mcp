@@ -45,8 +45,11 @@ CHECKS_X = (
 HANGS = "import time\n\ndef test_x_is_one():\n    time.sleep(60)\n"
 
 
-def _runner(project, tmp_path):
-    """A script that runs the real mutation check on `project`, with its folders under `tmp_path`."""
+def _runner(project, tmp_path, then=""):
+    """A script that runs the real mutation check on `project`, with its folders under `tmp_path`.
+
+    `then` is set-up run after the paths are set, as lines of Python using `mutate`.
+    """
     script = tmp_path / "run_mutate.py"
     script.write_text(
         textwrap.dedent(f"""
@@ -59,8 +62,9 @@ def _runner(project, tmp_path):
             mutate.RECOVERY = pathlib.Path({str(tmp_path / "recovery.json")!r})
             mutate.MUTATE_TMP = pathlib.Path({str(tmp_path / "mutate-tmp")!r})
             sys.argv = ["mutate.py"]
-            sys.exit(mutate.main())
-        """),
+        """)
+        + textwrap.dedent(then)
+        + "sys.exit(mutate.main())\n",
         encoding="utf-8",
     )
     return script
@@ -156,9 +160,46 @@ def _mutate():
     return module
 
 
-def test_a_second_stop_does_not_cut_the_cleanup_short():
-    """GitHub sends a second stop soon after the first; it must not end the clean-up halfway."""
+def test_after_the_first_stop_the_mutation_run_ignores_the_rest():
     assert all(_first_stop_leaves_the_rest_ignored(_mutate()).values())
+
+
+#: Slows the clean-up after a stop, and says when it has begun, so a second stop lands in it.
+SLOW_CLEANUP = """
+import time
+real_remove = mutate._remove
+
+def slow_remove(folder):
+    pathlib.Path({began!r}).touch()
+    time.sleep(2)
+    real_remove(folder)
+
+mutate._remove = slow_remove
+"""
+
+
+def _waits_for(condition, what):
+    deadline = time.monotonic() + 30
+    while not condition():
+        assert time.monotonic() < deadline, what
+        time.sleep(0.05)
+
+
+def test_a_second_stop_does_not_cut_the_cleanup_short(tmp_path):
+    """GitHub cancels a job with SIGINT, then SIGTERM a moment later, while the clean-up runs."""
+    project = _project(tmp_path, HANGS)
+    began = tmp_path / "cleanup-began"
+    script = _runner(project, tmp_path, SLOW_CLEANUP.format(began=str(began)))
+    running = subprocess.Popen([sys.executable, str(script)], text=True)
+    source = project / "src/code.py"
+    _waits_for(lambda: "x = 2" in source.read_text(encoding="utf-8"), "the run never switched the rule off")
+    time.sleep(1)  # let its suite start
+    running.send_signal(signal.SIGINT)
+    _waits_for(began.exists, "the clean-up never began")
+    running.send_signal(signal.SIGTERM)
+    running.wait(timeout=60)
+    assert source.read_text(encoding="utf-8") == "# RULE: x is one\nx = 1\n"
+    assert not (tmp_path / "mutate-tmp").exists(), "the second stop cut the clean-up short"
 
 
 def test_a_second_stop_does_not_cut_the_quality_check_s_cleanup_short():
@@ -353,24 +394,6 @@ def test_a_run_s_own_folder_is_made_for_its_user_alone(tmp_path, monkeypatch):
         assert folder.parent == mutate.MUTATE_TMP
     finally:
         os.close(lock)
-
-
-def test_ctrl_c_then_a_kill_still_puts_everything_back(tmp_path):
-    """GitHub cancels a job with SIGINT, then SIGTERM a moment later, while the clean-up runs."""
-    project = _project(tmp_path, HANGS)
-    running = subprocess.Popen([sys.executable, str(_runner(project, tmp_path))], text=True)
-    source = project / "src/code.py"
-    deadline = time.monotonic() + 30
-    while "x = 2" not in source.read_text(encoding="utf-8"):
-        assert time.monotonic() < deadline, "the run never switched the rule off"
-        time.sleep(0.05)
-    time.sleep(1)  # let its suite start
-    running.send_signal(signal.SIGINT)
-    time.sleep(0.05)
-    running.send_signal(signal.SIGTERM)
-    running.wait(timeout=30)
-    assert source.read_text(encoding="utf-8") == "# RULE: x is one\nx = 1\n"
-    assert not (tmp_path / "mutate-tmp").exists()
 
 
 def test_a_new_run_s_lock_is_always_one_it_made(tmp_path, monkeypatch):
