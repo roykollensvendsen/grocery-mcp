@@ -1,0 +1,5 @@
+[[rule]]
+name = "a price older than fourteen days is never called current"
+file = "src/grocery_mcp/answers.py"
+find = 'current = sorted\(\(p for p in prices if self._current\(p\)\), key=lambda p: p.price\)'
+replace = 'current = sorted((p for p in prices if p.seen_at is not None), key=lambda p: p.price)'

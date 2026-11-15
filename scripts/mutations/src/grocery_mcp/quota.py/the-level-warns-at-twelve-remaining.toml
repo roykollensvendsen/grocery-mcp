@@ -1,0 +1,5 @@
+[[rule]]
+name = "the level warns at twelve remaining"
+file = "src/grocery_mcp/quota.py"
+find = 'by_header = remaining is not None and remaining <= limit \* WARN_SHARE'
+replace = 'by_header = remaining is not None and remaining < limit * WARN_SHARE'

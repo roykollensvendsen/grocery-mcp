@@ -21,7 +21,7 @@ BRIDGE_START_SECONDS = 15.0
 
 async def _seconds_until_tools_listed(env):
     params = StdioServerParameters(
-        command=sys.executable, args=["-m", "kassalapp_mcp.cli", "serve", "--simulate"], env=env
+        command=sys.executable, args=["-m", "grocery_mcp.cli", "serve", "--simulate"], env=env
     )
     started = time.monotonic()
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
@@ -42,7 +42,7 @@ def test_a_cold_first_start_lists_the_tools_within_the_bridges_start_limit(tmp_p
 
 async def _log_of_one_question(env, log_path):
     params = StdioServerParameters(
-        command=sys.executable, args=["-m", "kassalapp_mcp.cli", "serve", "--simulate"], env=env
+        command=sys.executable, args=["-m", "grocery_mcp.cli", "serve", "--simulate"], env=env
     )
     with log_path.open("w", encoding="utf-8") as log:
         async with stdio_client(params, errlog=log) as (read, write), ClientSession(read, write) as session:

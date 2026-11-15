@@ -1,0 +1,5 @@
+[[rule]]
+name = "an error from kassalapp is put on kassalapp"
+file = "src/grocery_mcp/server.py"
+find = 'except httpx.HTTPStatusError as failure:'
+replace = 'except ZeroDivisionError as failure:'

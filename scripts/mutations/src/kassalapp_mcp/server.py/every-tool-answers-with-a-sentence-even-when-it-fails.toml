@@ -1,5 +1,0 @@
-[[rule]]
-name = "every tool answers with a sentence even when it fails"
-file = "src/kassalapp_mcp/server.py"
-find = 'except httpx.TransportError as failure:'
-replace = 'except ZeroDivisionError as failure:'

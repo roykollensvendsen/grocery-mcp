@@ -1,0 +1,5 @@
+[[rule]]
+name = "the status file is replaced whole never written in place"
+file = "src/grocery_mcp/quota.py"
+find = '_replace\(self._dir / "status.json", json.dumps\(self.bridge_status\(full\), indent=1\)\)'
+replace = '(self._dir / "status.json").write_text(json.dumps(self.bridge_status(full), indent=1))'

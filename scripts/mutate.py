@@ -69,8 +69,8 @@ def test_name_for(rule: str) -> str:
 def row_path(rule: dict[str, Any]) -> pathlib.PurePosixPath:
     """Where a rule's row belongs, under ``ROWS``: its source file's whole path, its own words.
 
-    A rule in ``src/kassalapp_mcp/server.py`` named "a 429 stops calls" belongs at
-    ``src/kassalapp_mcp/server.py/a-429-stops-calls.toml``.
+    A rule in ``src/grocery_mcp/server.py`` named "a 429 stops calls" belongs at
+    ``src/grocery_mcp/server.py/a-429-stops-calls.toml``.
     """
     words = re.sub(r"[^a-z0-9]+", "-", str(rule["name"]).lower()).strip("-")
     if not words:
