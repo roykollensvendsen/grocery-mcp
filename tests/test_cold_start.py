@@ -38,3 +38,21 @@ def test_a_cold_first_start_lists_the_tools_within_the_bridges_start_limit(tmp_p
     took, names = asyncio.run(_seconds_until_tools_listed(env))
     assert names == ["grocery_cheapest", "grocery_price"]
     assert took < BRIDGE_START_SECONDS, f"a cold start took {took:.1f} s"
+
+
+async def _log_of_one_question(env, log_path):
+    params = StdioServerParameters(
+        command=sys.executable, args=["-m", "kassalapp_mcp.cli", "serve", "--simulate"], env=env
+    )
+    with log_path.open("w", encoding="utf-8") as log:
+        async with stdio_client(params, errlog=log) as (read, write), ClientSession(read, write) as session:
+            await session.initialize()
+            await session.call_tool("grocery_price", {"product": "fjellmelk lett 1 l"})
+
+
+def test_a_whole_session_never_logs_the_search_words(tmp_path):
+    log_path = tmp_path / "stderr.log"
+    asyncio.run(_log_of_one_question(dict(os.environ), log_path))
+    logged = log_path.read_text(encoding="utf-8").lower()
+    assert "fjellmelk" not in logged
+    assert "7000000000017" not in logged
