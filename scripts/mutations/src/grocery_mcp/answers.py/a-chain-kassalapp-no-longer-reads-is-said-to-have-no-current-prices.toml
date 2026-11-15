@@ -1,0 +1,5 @@
+[[rule]]
+name = "a chain kassalapp no longer reads is said to have no current prices"
+file = "src/grocery_mcp/answers.py"
+find = '^        if not_fetched:$'
+replace = '        if False:'

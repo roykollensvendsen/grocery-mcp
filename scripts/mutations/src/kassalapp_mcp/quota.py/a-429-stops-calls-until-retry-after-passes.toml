@@ -1,5 +1,0 @@
-[[rule]]
-name = "a 429 stops calls until retry after passes"
-file = "src/kassalapp_mcp/quota.py"
-find = 'if self._until is not None and now < self._until:'
-replace = 'if False:'

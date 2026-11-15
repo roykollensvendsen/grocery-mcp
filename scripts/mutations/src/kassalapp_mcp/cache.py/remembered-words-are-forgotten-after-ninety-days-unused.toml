@@ -1,5 +1,0 @@
-[[rule]]
-name = "remembered words are forgotten after ninety days unused"
-file = "src/kassalapp_mcp/cache.py"
-find = '"DELETE FROM words WHERE used IS NULL OR used < \?"'
-replace = '"DELETE FROM words WHERE used IS NULL AND used < ?"'

@@ -11,9 +11,9 @@ import datetime as dt
 import httpx
 import pytest
 
-from kassalapp_mcp.answers import PriceAnswers
-from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp, FakeProduct
-from kassalapp_mcp.source import KassalappSource, Product, SlowDownError
+from grocery_mcp.answers import PriceAnswers
+from grocery_mcp.fake import FAKE_KEY, FakeKassalapp, FakeProduct
+from grocery_mcp.source import KassalappSource, Product, SlowDownError
 
 TODAY = dt.date(2026, 11, 15)
 EVERYWHERE = {
@@ -74,7 +74,7 @@ def test_equally_common_products_keep_kassalapp_s_order(fake):
 
 def test_the_chosen_product_s_price_needs_no_second_call_when_cached(fake):
     """Ranking fetches every choice's prices once; with the cache, choosing one sends nothing more."""
-    from kassalapp_mcp.cache import CachedSource  # noqa: PLC0415
+    from grocery_mcp.cache import CachedSource  # noqa: PLC0415
 
     noon = dt.datetime(2026, 11, 15, 12, 0, tzinfo=dt.timezone(dt.timedelta(hours=1)))
     source = CachedSource(KassalappSource(fake.client(), lambda: FAKE_KEY), ":memory:", now=lambda: noon)

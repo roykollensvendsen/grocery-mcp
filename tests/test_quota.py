@@ -7,12 +7,12 @@ import threading
 
 import pytest
 
-from kassalapp_mcp.answers import SLOW_DOWN, PriceAnswers
-from kassalapp_mcp.cache import CachedSource
-from kassalapp_mcp.cli import main
-from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp
-from kassalapp_mcp.quota import Quota
-from kassalapp_mcp.source import KassalappSource, Product, SlowDownError
+from grocery_mcp.answers import SLOW_DOWN, PriceAnswers
+from grocery_mcp.cache import CachedSource
+from grocery_mcp.cli import main
+from grocery_mcp.fake import FAKE_KEY, FakeKassalapp
+from grocery_mcp.quota import Quota
+from grocery_mcp.source import KassalappSource, Product, SlowDownError
 
 OSLO = dt.timezone(dt.timedelta(hours=1))
 LETT = Product("7000000000017", "Fjellmelk lett 1 l")
@@ -90,7 +90,7 @@ def test_the_level_warns_at_forty_eight_of_our_own_calls_a_minute(fake, quota, c
 def test_a_warning_is_logged_at_most_once_a_minute(fake, quota, clock, caplog):
     fake.remaining = 10
     source = _source(fake, quota)
-    with caplog.at_level(logging.WARNING, logger="kassalapp_mcp.quota"):
+    with caplog.at_level(logging.WARNING, logger="grocery_mcp.quota"):
         source.prices([LETT])
         source.prices([LETT])
         clock.at += dt.timedelta(seconds=61)

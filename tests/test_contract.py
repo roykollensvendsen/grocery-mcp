@@ -11,7 +11,7 @@ import json
 
 import httpx
 
-from kassalapp_mcp.source import BASE_URL, KassalappSource, Product
+from grocery_mcp.source import BASE_URL, KassalappSource, Product
 
 COFFEE = Product("7000000000055", "Bergkaffe filtermalt 500 g")
 

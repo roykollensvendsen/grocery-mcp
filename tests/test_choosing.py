@@ -4,10 +4,10 @@ import datetime as dt
 
 import pytest
 
-from kassalapp_mcp.answers import PriceAnswers
-from kassalapp_mcp.cache import CachedSource
-from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp
-from kassalapp_mcp.source import KassalappSource
+from grocery_mcp.answers import PriceAnswers
+from grocery_mcp.cache import CachedSource
+from grocery_mcp.fake import FAKE_KEY, FakeKassalapp
+from grocery_mcp.source import KassalappSource
 
 TODAY = dt.date(2026, 11, 14)
 NOON = dt.datetime(2026, 11, 14, 12, 0, tzinfo=dt.timezone(dt.timedelta(hours=1)))

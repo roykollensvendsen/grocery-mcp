@@ -1,0 +1,5 @@
+[[rule]]
+name = "the choices are offered most sold first"
+file = "src/grocery_mcp/answers.py"
+find = '^        return sorted\(ranked, key=lambda p: -len\(chains\[p\.ean\]\)\) \+ rest$'
+replace = '        return ranked + rest'
