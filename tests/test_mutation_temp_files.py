@@ -69,6 +69,7 @@ def test_a_killed_run_s_temporary_files_are_swept_at_the_next_start(tmp_path, mo
     left = mutate.MUTATE_TMP / "run-left-by-a-killed-run"
     (left / "shut").mkdir(parents=True)
     (left / "shut" / "inside.txt").write_text("x")
+    (left / ".lock").touch()  # a run locks it as it starts; a killed run's lock is free
     (left / "shut").chmod(0)
     mutate.sweep()
     assert not left.exists()

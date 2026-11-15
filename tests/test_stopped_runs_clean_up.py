@@ -165,10 +165,13 @@ def test_a_second_stop_does_not_cut_the_quality_check_s_cleanup_short():
     assert all(_first_stop_leaves_the_rest_ignored(_ratchet()).values())
 
 
-def _run_folder(parent, name="run-left-by-a-killed-run"):
+def _run_folder(parent, name="run-left-by-a-killed-run", *, locked=True):
+    """A run's folder as a killed run leaves it: its lock file, free, and its files."""
     folder = parent / name
     (folder / "basetemp").mkdir(parents=True)
     (folder / "basetemp" / "inside.txt").write_text("x", encoding="utf-8")
+    if locked:
+        (folder / ".lock").touch()
     return folder
 
 
@@ -274,3 +277,43 @@ def test_one_test_s_stop_handlers_never_reach_the_next(tmp_path):
         check=False,
     )
     assert done.returncode == 0, done.stdout
+
+
+def test_a_claimed_folder_with_no_lock_yet_is_never_swept(tmp_path, monkeypatch):
+    """A new run claims its name, then moves its locked folder in; a sweep between must leave it."""
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    claimed = mutate.MUTATE_TMP / "run-000000000001"
+    claimed.mkdir(parents=True)
+    mutate.sweep()
+    assert claimed.is_dir()
+    assert not (claimed / mutate.LOCK).exists(), "a sweep made a lock in another run's folder"
+
+
+def test_an_hour_old_folder_with_no_lock_is_swept(tmp_path, monkeypatch):
+    """Left by a run killed in that instant, or by a run from before runs held locks."""
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    left = _run_folder(mutate.MUTATE_TMP, "run-000000000002", locked=False)
+    old = time.time() - mutate.STARTING_SECONDS - 60
+    os.utime(left, (old, old))
+    mutate.sweep()
+    assert not left.exists()
+
+
+def test_a_folder_another_sweep_removed_first_is_passed_over(tmp_path, monkeypatch):
+    """Two runs may sweep at once; the one that comes second finds the folder already gone."""
+    mutate = _mutate()
+    monkeypatch.setattr(mutate, "MUTATE_TMP", tmp_path / "kassalapp-mcp-mutate-0000aaaa")
+    gone = mutate.MUTATE_TMP / "run-000000000003"
+    gone.mkdir(parents=True)
+    real_open = mutate.os.open
+
+    def open_after_the_other_sweep(path, *args, **kwargs):
+        if gone.exists():
+            gone.rmdir()  # the other sweep removes it after this one first looked
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(mutate.os, "open", open_after_the_other_sweep)
+    mutate.sweep()  # passes over it, rather than fail the run
+    assert not gone.exists()
