@@ -2,14 +2,15 @@
 
 import asyncio
 import datetime as dt
+import time
 
 import httpx
 
 from kassalapp_mcp.answers import PriceAnswers
 from kassalapp_mcp.cli import main
 from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp
-from kassalapp_mcp.server import FIRST_LINE_MAX, build_server
-from kassalapp_mcp.source import KassalappSource
+from kassalapp_mcp.server import ANSWER_WITHIN, FIRST_LINE_MAX, build_server
+from kassalapp_mcp.source import TIMEOUT, KassalappSource
 
 TODAY = dt.date(2026, 11, 14)
 
@@ -114,3 +115,24 @@ def test_a_failure_inside_the_plugin_is_logged_without_the_words(caplog):
     assert answer["say"].startswith("That went wrong inside kassalapp-mcp.")
     assert "RuntimeError" in caplog.text
     assert "fjellmelk" not in caplog.text
+
+
+def test_a_question_answers_within_one_deadline_even_when_kassalapp_is_slow():
+    class Slow:
+        def grocery_price(self, product, chain=None):
+            time.sleep(0.5)
+            return {"success": True, "outcome": "price", "say": f"{product} {chain}"}
+
+        def grocery_cheapest(self, product):
+            return self.grocery_price(product)
+
+    started = time.monotonic()
+    answer = _call(build_server(Slow(), answer_within=0.1), "grocery_price", {"product": "bergkaffe"})
+    assert time.monotonic() - started < 0.4
+    assert answer["outcome"] == "slow"
+    assert answer["say"] == "Kassalapp is slow to answer; ask again in a moment."
+
+
+def test_the_question_deadline_is_inside_the_voices_limit():
+    assert ANSWER_WITHIN < 15
+    assert TIMEOUT.connect + TIMEOUT.read < ANSWER_WITHIN

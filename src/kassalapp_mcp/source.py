@@ -14,10 +14,10 @@ from decimal import Decimal
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, Protocol
 
+import httpx
+
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    import httpx
 
     from kassalapp_mcp.quota import Quota
 
@@ -28,8 +28,9 @@ for _library in ("httpx", "httpcore"):
     # RULE: search words are never logged
     logging.getLogger(_library).setLevel(logging.WARNING)
 
-#: Seconds one call may take. The voice gives up on a tool after about 15.
-TIMEOUT = 5.0
+#: Limits on one call: two seconds to connect, four for each other phase. The whole
+#: question has its own deadline as well, in the server.
+TIMEOUT = httpx.Timeout(4.0, connect=2.0)
 #: Kassalapp refuses a search shorter than this.
 MIN_SEARCH = 3
 #: Kassalapp's limit on barcodes in one bulk price call.

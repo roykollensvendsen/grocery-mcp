@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import functools
 import logging
 import traceback
@@ -31,6 +32,12 @@ SIMULATED = "SIMULATED prices, not real ones: say so. "
 DROPPED = "Kassalapp did not answer; try again in a minute."
 #: What the voice hears when the plugin itself fails, so it never hears only that the tool failed.
 BROKE = "That went wrong inside kassalapp-mcp. Try again, and if it fails again, check its log."
+#: Seconds one question may take, both calls to Kassalapp together. The voice gives up near 15.
+ANSWER_WITHIN = 9.0
+#: What the voice hears at that deadline; the work carries on, and fills the cache.
+SLOW = "Kassalapp is slow to answer; ask again in a moment."
+#: Questions run here, so one past its deadline can finish while the voice is answered.
+_WORKERS = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="kassalapp")
 #: What the voice hears when Kassalapp answers, but with an error of its own.
 KASSALAPP_ERROR = "Kassalapp answered with an error; try again in a few minutes."
 
@@ -50,34 +57,43 @@ CHEAPEST_DESCRIPTION = (
 )
 
 
-def build_server(answers: PriceAnswers, *, simulated: bool = False) -> MCPServer[Any]:
-    """The MCP server with the price tool, answering from ``answers``."""
+def build_server(
+    answers: PriceAnswers, *, simulated: bool = False, answer_within: float = ANSWER_WITHIN
+) -> MCPServer[Any]:
+    """The MCP server with the price tools, answering from ``answers`` within ``answer_within`` seconds."""
     server: MCPServer[Any] = MCPServer(
         name="kassalapp-simulated" if simulated else "kassalapp",
         instructions=(SIMULATED + INSTRUCTIONS) if simulated else INSTRUCTIONS,
     )
 
     @server.tool(annotations=ToolAnnotations(read_only_hint=True), description=PRICE_DESCRIPTION)
-    @_guarded(simulated=simulated)
+    @_guarded(simulated=simulated, answer_within=answer_within)
     def grocery_price(product: str, chain: str | None = None) -> dict[str, Any]:
         return answers.grocery_price(product, chain)
 
     @server.tool(annotations=ToolAnnotations(read_only_hint=True), description=CHEAPEST_DESCRIPTION)
-    @_guarded(simulated=simulated)
+    @_guarded(simulated=simulated, answer_within=answer_within)
     def grocery_cheapest(product: str) -> dict[str, Any]:
         return answers.grocery_cheapest(product)
 
     return server
 
 
-def _guarded(*, simulated: bool) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
+def _guarded(
+    *, simulated: bool, answer_within: float
+) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
     """Make a tool's failure an answer the voice can still read."""
 
     def wrap(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
         @functools.wraps(tool)
         def answered(*args: Any, **kwargs: Any) -> dict[str, Any]:  # noqa: ANN401
+            work = _WORKERS.submit(tool, *args, **kwargs)
             try:
-                answer = tool(*args, **kwargs)
+                # RULE: a question answers within one deadline even when kassalapp is slow
+                answer = work.result(timeout=answer_within)
+            except concurrent.futures.TimeoutError:
+                log.warning("%s: no answer within %.0f s; it carries on", tool.__name__, answer_within)
+                answer = {"success": False, "outcome": "slow", "say": SLOW}
             # RULE: every tool answers with a sentence even when it fails
             except httpx.TransportError as failure:
                 log.warning("%s: Kassalapp did not answer (%s)", tool.__name__, type(failure).__name__)
