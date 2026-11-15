@@ -7,10 +7,9 @@ so a second source later gets the same rules without writing them again.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import unicodedata
 from typing import TYPE_CHECKING, Any
-
-import httpx
 
 from kassalapp_mcp.cache import normalised
 from kassalapp_mcp.source import (
@@ -25,6 +24,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from kassalapp_mcp.source import ItemPrice, PriceSource
+
+log = logging.getLogger(__name__)
 
 #: Kassalapp calls a price out of date when it has not been checked for this long.
 STALE_AFTER = dt.timedelta(days=14)
@@ -147,9 +148,11 @@ class PriceAnswers:
         ranked, rest = found[:MOST_RANKED], found[MOST_RANKED:]
         try:
             prices = self._source.prices(ranked)
-        except (SlowDownError, httpx.HTTPError):
-            # Kassalapp's own order still makes a fair question.
+        except Exception as failure:  # noqa: BLE001 - ranking only orders the question
+            # Whatever broke, Kassalapp's own order still makes a fair question. The type
+            # only, never the message: it may quote the search words.
             # RULE: a failed ranking still asks the question
+            log.warning("ranking the choices failed (%s); kept Kassalapp's order", type(failure).__name__)
             return found
         chains: dict[str, set[str]] = {p.ean: set() for p in found}
         for price in prices:

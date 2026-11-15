@@ -169,3 +169,25 @@ def test_ranking_the_choices_costs_at_most_one_price_call():
     assert answer["outcome"] == "ask"
     assert [len(asked) for asked in source.asked_prices] == [20]
     assert [c["name"] for c in answer["choices"]] == ["Lettmelk 0", "Lettmelk 1", "Lettmelk 2"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    ["not json at all", '{"data": "garbage"}', '{"data": [17, null, {"stores": "none"}]}'],
+    ids=["not json", "data a string", "entries of the wrong kind"],
+)
+def test_a_ranking_answer_that_cannot_be_read_still_asks_the_question(fake, body):
+    """However the price answer is broken, a question it only ranks is still asked."""
+    real = fake.transport()
+
+    def bulk_broken(request):
+        if request.url.path.endswith("/prices-bulk"):
+            return httpx.Response(200, text=body)
+        return real.handle_request(request)
+
+    client = httpx.Client(base_url=fake.client().base_url, transport=httpx.MockTransport(bulk_broken))
+    answer = PriceAnswers(KassalappSource(client, lambda: FAKE_KEY), today=lambda: TODAY).grocery_price(
+        "lettmelk"
+    )
+    assert answer["outcome"] == "ask"
+    assert answer["choices"][0]["name"] == "Grønnlund Lettmelk økologisk 1 l"

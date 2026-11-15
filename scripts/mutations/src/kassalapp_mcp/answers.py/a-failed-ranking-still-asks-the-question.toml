@@ -1,5 +1,5 @@
 [[rule]]
 name = "a failed ranking still asks the question"
 file = "src/kassalapp_mcp/answers.py"
-find = '^        except \(SlowDownError, httpx\.HTTPError\):$'
+find = '^        except Exception as failure:  # noqa: BLE001 - ranking only orders the question$'
 replace = '        except ZeroDivisionError:'
