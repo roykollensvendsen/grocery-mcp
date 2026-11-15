@@ -29,7 +29,7 @@ def _status(fake, tmp_path, *, calls=1):
     source = KassalappSource(fake.client(), lambda: FAKE_KEY, quota=quota)
     for _ in range(calls):
         source.prices([LETT])
-    return json.loads((tmp_path / "status.json").read_text())
+    return json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))
 
 
 def test_the_status_file_has_the_shape_every_plugin_shares(fake, tmp_path):
@@ -78,9 +78,9 @@ def test_backing_off_is_not_ok_and_says_how_long(fake, tmp_path):
     fake.retry_after = 30
     with pytest.raises(SlowDownError):
         KassalappSource(fake.client(), lambda: FAKE_KEY, quota=quota).prices([LETT])
-    status = json.loads((tmp_path / "status.json").read_text())
+    status = json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))
     assert status["ok"] is False
-    assert status["say"] == "Waiting 30 s, as Kassalapp asked"
+    assert status["say"] == "Waiting until 12:00:40, as Kassalapp asked"
     assert status["figures"]["waiting_seconds"] == 30
     assert status["figures"]["too_many_today"] == 1
 
@@ -103,3 +103,19 @@ def test_the_count_survives_a_restart_for_the_quota_command(fake, tmp_path):
     _status(fake, tmp_path)
     again = Quota(tmp_path, now=lambda: AT).status()
     assert (again["remaining"], again["calls_today"]) == (59, 1)
+
+
+def test_a_header_name_the_bridge_would_refuse_is_left_out_of_the_figures(fake, tmp_path):
+    fake.extra_headers = {"X-RateLimit-Day-2": "5000", "X-RateLimit-" + "Very-Long-Name" * 4: "1"}
+    figures = _status(fake, tmp_path)["figures"]
+    assert all(FIGURE_NAME.fullmatch(name) for name in figures), figures
+
+
+def test_the_status_is_stamped_with_when_it_was_written(fake, tmp_path):
+    clock = [AT]
+    quota = Quota(tmp_path, now=lambda: clock[0])
+    source = KassalappSource(fake.client(), lambda: FAKE_KEY, quota=quota)
+    source.prices([LETT])
+    clock[0] = AT + dt.timedelta(minutes=5)
+    quota.cache_hit()
+    assert json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))["at"] == clock[0].isoformat()
