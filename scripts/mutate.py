@@ -21,17 +21,20 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime as dt
+import fcntl
 import hashlib
 import json
 import os
 import pathlib
 import re
+import secrets
 import shutil
 import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 from typing import TYPE_CHECKING, Any
 
@@ -171,11 +174,89 @@ def _remove(folder: pathlib.Path) -> None:
     shutil.rmtree(folder, onexc=_writable_again)
 
 
+#: A run's folder holds its lock file, and the folder its suite's temporary files go in.
+#: The lock sits beside that folder: pytest empties the folder it is given as it starts.
+LOCK = ".lock"
+OPEN_LOCK = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW
+#: A run's folder, and one being made, which is locked before it takes a run's name.
+RUN_NAME = re.compile(r"run-[\w-]+")
+STARTING = re.compile(r"starting-\w+")
+#: How old an unlocked folder being made must be before it counts as left by a killed run.
+STARTING_SECONDS = 3600
+
+
+def _ours(path: pathlib.Path) -> bool:
+    """A real folder of this user's; a link is never followed."""
+    try:
+        found = path.lstat()
+    except FileNotFoundError:
+        return False
+    return stat.S_ISDIR(found.st_mode) and found.st_uid == os.getuid()
+
+
+def _checkouts() -> list[pathlib.Path]:
+    """Every checkout's folder of runs: this one's, and those of other checkouts and copies."""
+    named = re.compile(re.escape(MUTATE_TMP.name[:-8]) + r"[0-9a-f]{8}")
+    parent = MUTATE_TMP.parent
+    others = [
+        p for p in (parent.iterdir() if parent.is_dir() else []) if named.fullmatch(p.name) and _ours(p)
+    ]
+    return [MUTATE_TMP] * _ours(MUTATE_TMP) + [p for p in others if p != MUTATE_TMP]
+
+
+def _dead(run: pathlib.Path) -> bool:
+    """Whether `run` is a run's folder whose run has ended: nobody holds its lock."""
+    starting = STARTING.fullmatch(run.name)
+    if not (_ours(run) and (starting or RUN_NAME.fullmatch(run.name))):
+        return False
+    if starting and time.time() - run.lstat().st_mtime < STARTING_SECONDS:
+        return False  # it may be being made right now
+    try:
+        lock = os.open(run / LOCK, OPEN_LOCK, 0o600)
+    except OSError:
+        return bool(starting)  # killed before it could lock
+    try:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            # RULE: a run still going is never swept
+            return False  # a run still going holds its lock
+    finally:
+        os.close(lock)
+    return True
+
+
 def sweep() -> None:
-    """Remove what an earlier run, killed before it could clean up, left behind."""
-    # RULE: a killed run's temporary files are swept at the next start
-    for left in MUTATE_TMP.iterdir() if MUTATE_TMP.is_dir() else []:
-        _remove(left)
+    """Remove what runs killed before they could clean up left behind, in any checkout.
+
+    A copy the quality check made is never run in again, so only another checkout's
+    run comes by to sweep it. A run still going holds a lock, and is left alone.
+    """
+    # RULE: a dead run's folder is swept in any checkout
+    for checkout in _checkouts():
+        # RULE: a killed run's temporary files are swept at the next start
+        for left in list(checkout.iterdir()):
+            if _dead(left):
+                _remove(left)
+        with contextlib.suppress(OSError):  # rmdir takes it only when empty
+            checkout.rmdir()
+
+
+def start_run_folder() -> tuple[pathlib.Path, int]:
+    """A new run's folder, and the lock this run now holds on it, taken before it has a run's name."""
+    MUTATE_TMP.mkdir(parents=True, exist_ok=True)
+    starting = pathlib.Path(tempfile.mkdtemp(prefix="starting-", dir=MUTATE_TMP))
+    lock = os.open(starting / LOCK, OPEN_LOCK, 0o600)
+    # RULE: a new run's folder is locked before it takes a run's name
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    while True:
+        folder = MUTATE_TMP / f"run-{secrets.randbelow(10**12):012d}"
+        try:
+            folder.mkdir(mode=0o700)  # claims the name, so the rename replaces no one else's
+        except FileExistsError:
+            continue
+        starting.rename(folder)
+        return folder, lock
 
 
 #: The stops from outside: Ctrl-C, a cancelled CI job (GitHub sends SIGINT, then SIGTERM),
@@ -250,8 +331,7 @@ def run_suite() -> tuple[int, list[str]]:
     # the wrong rule, so no bytecode is written at all.
     # RULE: two mutations never share a bytecode cache
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
-    MUTATE_TMP.mkdir(parents=True, exist_ok=True)
-    temporary = pathlib.Path(tempfile.mkdtemp(prefix="run-", dir=MUTATE_TMP))
+    temporary, lock = start_run_folder()
     try:
         r = subprocess.run(  # noqa: S603 - this interpreter, pytest, and a folder this script made
             [
@@ -263,7 +343,7 @@ def run_suite() -> tuple[int, list[str]]:
                 "--color=no",
                 "-p",
                 "no:cacheprovider",
-                f"--basetemp={temporary}",
+                f"--basetemp={temporary / 'basetemp'}",
             ],
             capture_output=True,
             text=True,
@@ -274,6 +354,7 @@ def run_suite() -> tuple[int, list[str]]:
     finally:
         # RULE: a suite run leaves no temporary files behind
         _remove(temporary)
+        os.close(lock)
         # The run's own folder goes too, once no other run in this checkout is using it.
         # RULE: a mutation run leaves no folder of its own behind
         with contextlib.suppress(OSError):
