@@ -22,7 +22,7 @@ import subprocess
 
 import pytest
 
-from kassalapp_mcp.cli import COMMANDS
+from grocery_mcp.cli import COMMANDS
 
 ROOT = pathlib.Path(__file__).parent.parent
 # Every page, found rather than listed: a hand-kept list is a page's way out.

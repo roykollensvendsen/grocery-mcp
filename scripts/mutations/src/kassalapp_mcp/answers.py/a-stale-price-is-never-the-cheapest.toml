@@ -1,5 +1,0 @@
-[[rule]]
-name = "a stale price is never the cheapest"
-file = "src/kassalapp_mcp/answers.py"
-find = 'current = sorted\(\(p for p in prices if self._current\(p\)\), key=lambda p: \(p.price, p.chain_name\)\)'
-replace = 'current = sorted((p for p in prices if p.seen_at is not None), key=lambda p: (p.price, p.chain_name))'

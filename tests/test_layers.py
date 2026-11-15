@@ -13,7 +13,7 @@ import importlib.util
 import pathlib
 
 ROOT = pathlib.Path(__file__).parent.parent
-PACKAGE = ROOT / "src" / "kassalapp_mcp"
+PACKAGE = ROOT / "src" / "grocery_mcp"
 
 
 def _ratchet():

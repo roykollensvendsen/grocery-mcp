@@ -5,8 +5,8 @@ from decimal import Decimal
 
 import pytest
 
-from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp
-from kassalapp_mcp.source import (
+from grocery_mcp.fake import FAKE_KEY, FakeKassalapp
+from grocery_mcp.source import (
     KassalappSource,
     KeyRefusedError,
     NotSetUpError,
@@ -100,7 +100,7 @@ def test_the_source_only_reads(fake, key_file):
 def test_a_key_file_others_can_read_is_warned_about_once(fake, key_file, caplog):
     key_file.chmod(0o644)
     source = KassalappSource(fake.client(), key_file)
-    with caplog.at_level("WARNING", logger="kassalapp_mcp.source"):
+    with caplog.at_level("WARNING", logger="grocery_mcp.source"):
         source.find("fjellmelk")
         source.find("fjellmelk")
     assert len(caplog.records) == 1
@@ -110,6 +110,6 @@ def test_a_key_file_others_can_read_is_warned_about_once(fake, key_file, caplog)
 
 def test_a_key_file_only_its_owner_can_read_is_not_warned_about(fake, key_file, caplog):
     key_file.chmod(0o600)
-    with caplog.at_level("WARNING", logger="kassalapp_mcp.source"):
+    with caplog.at_level("WARNING", logger="grocery_mcp.source"):
         KassalappSource(fake.client(), key_file).find("fjellmelk")
     assert caplog.records == []

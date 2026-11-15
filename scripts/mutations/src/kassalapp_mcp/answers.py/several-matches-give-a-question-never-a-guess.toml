@@ -1,5 +1,0 @@
-[[rule]]
-name = "several matches give a question never a guess"
-file = "src/kassalapp_mcp/answers.py"
-find = 'offered = self\._most_sold_first\(found\)\[:MOST_CHOICES\]'
-replace = 'return found[0]'

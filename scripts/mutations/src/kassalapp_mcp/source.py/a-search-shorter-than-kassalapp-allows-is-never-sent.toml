@@ -1,5 +1,0 @@
-[[rule]]
-name = "a search shorter than kassalapp allows is never sent"
-file = "src/kassalapp_mcp/source.py"
-find = 'if len\(words\) < MIN_SEARCH:'
-replace = 'if False:'

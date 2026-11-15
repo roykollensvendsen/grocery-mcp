@@ -217,26 +217,26 @@ def test_a_cycle_through_a_subpackage_by_absolute_imports_is_counted(tmp_path):
 
 def _layered(tmp_path, files):
     """A package named like this one, so its imports read as they do in src/."""
-    pkg = tmp_path / "kassalapp_mcp"
+    pkg = tmp_path / "grocery_mcp"
     _package(pkg, {"__init__.py": "", **files})
     return pkg
 
 
 def test_an_import_a_layer_may_not_use_is_a_breach(tmp_path):
     allowed = {
-        "source.py": "import httpx\nfrom kassalapp_mcp.quota import Quota\n",
+        "source.py": "import httpx\nfrom grocery_mcp.quota import Quota\n",
         "quota.py": "",
-        "answers.py": "from kassalapp_mcp import source\n",
-        "server.py": "from mcp.server import MCPServer\nfrom kassalapp_mcp.answers import PriceAnswers\n",
-        "cli.py": "from kassalapp_mcp.server import build_server\n",
+        "answers.py": "from grocery_mcp import source\n",
+        "server.py": "from mcp.server import MCPServer\nfrom grocery_mcp.answers import PriceAnswers\n",
+        "cli.py": "from grocery_mcp.server import build_server\n",
     }
     assert ratchet.layer_breaches(_layered(tmp_path, allowed)) == []
     wrong = {
-        "answers.py": "from kassalapp_mcp.server import build_server\n",
+        "answers.py": "from grocery_mcp.server import build_server\n",
         "cache.py": "def later():\n    import mcp.types\n",
     }
     assert ratchet.layer_breaches(_layered(tmp_path / "b", {**allowed, **wrong})) == [
-        "answers (core) imports kassalapp_mcp.server (top)",
+        "answers (core) imports grocery_mcp.server (top)",
         "cache (core) imports mcp.types",
     ]
 

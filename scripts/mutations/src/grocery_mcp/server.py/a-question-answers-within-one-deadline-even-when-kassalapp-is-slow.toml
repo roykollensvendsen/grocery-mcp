@@ -1,0 +1,5 @@
+[[rule]]
+name = "a question answers within one deadline even when kassalapp is slow"
+file = "src/grocery_mcp/server.py"
+find = 'answer = work.result\(timeout=answer_within\)'
+replace = 'answer = work.result()'

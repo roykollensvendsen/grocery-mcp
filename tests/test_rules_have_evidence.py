@@ -82,7 +82,7 @@ def test_every_rule_has_a_test_named_after_it():
     assert not missing, f"rules with no test named after them — write {wanted}"
 
 
-def _row(name, file="src/kassalapp_mcp/server.py"):
+def _row(name, file="src/grocery_mcp/server.py"):
     return f"[[rule]]\nname = \"{name}\"\nfile = \"{file}\"\nfind = 'x'\nreplace = 'y'\n"
 
 
@@ -97,27 +97,27 @@ def test_every_row_is_read_from_a_file_of_its_own(tmp_path):
     Two pull requests that each added a row at the end of one shared file collided.
     """
     folder = tmp_path / "mutations"
-    _place(folder, "src/kassalapp_mcp/server.py/one.toml", _row("one"))
-    _place(folder, "src/kassalapp_mcp/service.py/two.toml", _row("two", "src/kassalapp_mcp/service.py"))
+    _place(folder, "src/grocery_mcp/server.py/one.toml", _row("one"))
+    _place(folder, "src/grocery_mcp/service.py/two.toml", _row("two", "src/grocery_mcp/service.py"))
     assert [rule["name"] for rule in _mutate().all_rows(folder)] == ["one", "two"]
 
 
 def test_the_same_rule_with_two_rows_is_refused(tmp_path):
     """A rule with two rows would be switched off twice and counted twice."""
     folder = tmp_path / "mutations"
-    _place(folder, "src/kassalapp_mcp/server.py/twice.toml", _row("twice"))
-    _place(folder, "src/kassalapp_mcp/service.py/twice.toml", _row("twice", "src/kassalapp_mcp/service.py"))
+    _place(folder, "src/grocery_mcp/server.py/twice.toml", _row("twice"))
+    _place(folder, "src/grocery_mcp/service.py/twice.toml", _row("twice", "src/grocery_mcp/service.py"))
     with pytest.raises(SystemExit) as refused:
         _mutate().all_rows(folder)
     said = str(refused.value)
-    assert "mutations/src/kassalapp_mcp/server.py/twice.toml" in said
-    assert "mutations/src/kassalapp_mcp/service.py/twice.toml" in said
+    assert "mutations/src/grocery_mcp/server.py/twice.toml" in said
+    assert "mutations/src/grocery_mcp/service.py/twice.toml" in said
     assert "delete one" in said
 
 
 def test_a_rule_with_no_letter_or_digit_is_refused_a_row_file():
     with pytest.raises(SystemExit, match="no letter or digit"):
-        _mutate().row_path({"name": "--", "file": "src/kassalapp_mcp/server.py"})
+        _mutate().row_path({"name": "--", "file": "src/grocery_mcp/server.py"})
 
 
 def test_a_row_file_sits_under_its_source_file_s_whole_path_under_its_own_name(tmp_path):
@@ -126,15 +126,15 @@ def test_a_row_file_sits_under_its_source_file_s_whole_path_under_its_own_name(t
     Its folder is the row's `file` exactly, extension included; its name is the rule's words.
     """
     folder = tmp_path / "mutations"
-    _place(folder, "src/kassalapp_mcp/server.py/in-place.toml", _row("in place"))
+    _place(folder, "src/grocery_mcp/server.py/in-place.toml", _row("in place"))
     _place(folder, "server/wrong-folder.toml", _row("wrong folder"))
-    _place(folder, "src/kassalapp_mcp/server.py/a-wrong-name.toml", _row("named otherwise"))
-    _place(folder, "src/kassalapp_mcp/server.py/two-rows.toml", _row("two rows") + _row("in one file"))
+    _place(folder, "src/grocery_mcp/server.py/a-wrong-name.toml", _row("named otherwise"))
+    _place(folder, "src/grocery_mcp/server.py/two-rows.toml", _row("two rows") + _row("in one file"))
     found = " ".join(_mutate().misfiled(folder))
-    assert "server/wrong-folder.toml should be src/kassalapp_mcp/server.py/wrong-folder.toml" in found
-    here = "src/kassalapp_mcp/server.py"
+    assert "server/wrong-folder.toml should be src/grocery_mcp/server.py/wrong-folder.toml" in found
+    here = "src/grocery_mcp/server.py"
     assert f"{here}/a-wrong-name.toml should be {here}/named-otherwise.toml" in found
-    assert "src/kassalapp_mcp/server.py/two-rows.toml holds 2 rows" in found
+    assert "src/grocery_mcp/server.py/two-rows.toml holds 2 rows" in found
     assert "in-place" not in found
 
 

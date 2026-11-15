@@ -4,9 +4,9 @@ import datetime as dt
 
 import pytest
 
-from kassalapp_mcp.answers import NOT_SET_UP, PriceAnswers
-from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp, FakeProduct
-from kassalapp_mcp.source import KassalappSource
+from grocery_mcp.answers import NOT_SET_UP, PriceAnswers
+from grocery_mcp.fake import FAKE_KEY, FakeKassalapp, FakeProduct
+from grocery_mcp.source import KassalappSource
 
 TODAY = dt.date(2026, 11, 14)
 

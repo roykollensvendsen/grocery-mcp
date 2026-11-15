@@ -8,9 +8,9 @@ import re
 
 import pytest
 
-from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp
-from kassalapp_mcp.quota import Quota
-from kassalapp_mcp.source import KassalappSource, Product, SlowDownError
+from grocery_mcp.fake import FAKE_KEY, FakeKassalapp
+from grocery_mcp.quota import Quota
+from grocery_mcp.source import KassalappSource, Product, SlowDownError
 
 OSLO = dt.timezone(dt.timedelta(hours=1))
 LETT = Product("7000000000017", "Fjellmelk lett 1 l")

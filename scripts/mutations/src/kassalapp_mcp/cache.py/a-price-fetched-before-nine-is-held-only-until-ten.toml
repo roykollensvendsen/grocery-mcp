@@ -1,5 +1,0 @@
-[[rule]]
-name = "a price fetched before nine is held only until ten"
-file = "src/kassalapp_mcp/cache.py"
-find = 'if oslo.time\(\) < UPDATE_STARTS:'
-replace = 'if False:'

@@ -6,11 +6,11 @@ import time
 
 import httpx
 
-from kassalapp_mcp.answers import PriceAnswers
-from kassalapp_mcp.cli import main
-from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp
-from kassalapp_mcp.server import ANSWER_WITHIN, FIRST_LINE_MAX, build_server
-from kassalapp_mcp.source import TIMEOUT, KassalappSource
+from grocery_mcp.answers import PriceAnswers
+from grocery_mcp.cli import main
+from grocery_mcp.fake import FAKE_KEY, FakeKassalapp
+from grocery_mcp.server import ANSWER_WITHIN, FIRST_LINE_MAX, build_server
+from grocery_mcp.source import TIMEOUT, KassalappSource
 
 TODAY = dt.date(2026, 11, 14)
 

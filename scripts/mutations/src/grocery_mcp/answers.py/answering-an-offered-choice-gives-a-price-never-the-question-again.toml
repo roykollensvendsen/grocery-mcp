@@ -1,0 +1,5 @@
+[[rule]]
+name = "answering an offered choice gives a price never the question again"
+file = "src/grocery_mcp/answers.py"
+find = 'if len\(found\) == 1 or len\(exact\) == 1:'
+replace = 'if len(found) == 1:'

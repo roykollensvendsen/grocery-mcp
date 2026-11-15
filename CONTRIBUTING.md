@@ -60,8 +60,8 @@ way to learn that the gates are not a ritual performed once.
    A rule is a line marked `# RULE: what it says`, in `src/` or in any script
    under `scripts/`, the mutation script's own included. Every one needs
    a row and a test whose name is the rule's own words. The row is a file of its
-   own: a rule in `src/kassalapp_mcp/quota.py` named "a 429 stops calls" goes in
-   `scripts/mutations/src/kassalapp_mcp/quota.py/a-429-stops-calls.toml`, and the
+   own: a rule in `src/grocery_mcp/quota.py` named "a 429 stops calls" goes in
+   `scripts/mutations/src/grocery_mcp/quota.py/a-429-stops-calls.toml`, and the
    tests refuse a row filed anywhere else. One file per row means two pull
    requests that each add a rule never clash. The test's name is the rule's own
    words — `# RULE: a spoken reply is capped` wants

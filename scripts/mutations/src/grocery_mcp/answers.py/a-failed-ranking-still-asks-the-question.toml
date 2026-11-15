@@ -1,0 +1,5 @@
+[[rule]]
+name = "a failed ranking still asks the question"
+file = "src/grocery_mcp/answers.py"
+find = '^        except Exception as failure:  # noqa: BLE001 - ranking only orders the question$'
+replace = '        except ZeroDivisionError:'
