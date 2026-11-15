@@ -30,8 +30,8 @@ replace = 'if False:'
 [[rule]]
 name = "several matches give a question never a guess"
 file = "src/kassalapp_mcp/answers.py"
-find = 'if len\(found\) > 1:'
-replace = 'if False:'
+find = 'offered = found\[:MOST_CHOICES\]'
+replace = 'return found[0]'
 
 [[rule]]
 name = "a price older than fourteen days is never called current"
@@ -92,3 +92,9 @@ name = "the status file is replaced whole never written in place"
 file = "src/kassalapp_mcp/quota.py"
 find = '_replace\(self._dir / "status.json", json.dumps\(self.bridge_status\(full\), indent=1\)\)'
 replace = '(self._dir / "status.json").write_text(json.dumps(self.bridge_status(full), indent=1))'
+
+[[rule]]
+name = "answering an offered choice gives a price never the question again"
+file = "src/kassalapp_mcp/answers.py"
+find = 'if len\(found\) == 1 or len\(exact\) == 1:'
+replace = 'if len(found) == 1:'

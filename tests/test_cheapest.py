@@ -21,7 +21,7 @@ def _answers(fake, key=FAKE_KEY):
 
 
 def test_the_cheapest_chain_comes_first_and_the_next_after_it(fake):
-    answer = _answers(fake).grocery_cheapest("fjellmelk lett")
+    answer = _answers(fake).grocery_cheapest("fjellmelk lett 1 l")
     assert answer["outcome"] == "cheapest"
     assert answer["say"].startswith(
         "Fjellmelk lett 1 l is cheapest at Joker, 24.90, checked yesterday."
@@ -32,7 +32,7 @@ def test_the_cheapest_chain_comes_first_and_the_next_after_it(fake):
 
 def test_a_stale_price_is_never_the_cheapest(fake):
     # Kiwi's 21.90 and Spar's 25.50 are both older than fourteen days.
-    say = _answers(fake).grocery_cheapest("fjellmelk lett")["say"]
+    say = _answers(fake).grocery_cheapest("fjellmelk lett 1 l")["say"]
     assert "21.90" not in say
     assert "Spar" not in say
 
@@ -70,6 +70,6 @@ def test_no_current_price_anywhere_is_said_plainly(fake):
 
 
 def test_cheapest_without_a_key_sends_nothing(fake):
-    answer = _answers(fake, key="").grocery_cheapest("fjellmelk lett")
+    answer = _answers(fake, key="").grocery_cheapest("fjellmelk lett 1 l")
     assert answer["say"] == NOT_SET_UP
     assert fake.requests == []

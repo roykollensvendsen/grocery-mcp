@@ -19,6 +19,7 @@ FIRST_LINE_MAX = 26
 INSTRUCTIONS = (
     "Grocery prices per chain from Kassalapp. Read each 'say' aloud as it is. "
     "When the answer asks which product, read the choices and wait; never pick one. "
+    "Then pass the chosen name or its 'ean' as 'product'. "
     "It only reads prices and never buys anything."
 )
 SIMULATED = "SIMULATED prices, not real ones: say so. "
@@ -30,14 +31,16 @@ BROKE = "That went wrong inside kassalapp-mcp. Try again, and if it fails again,
 PRICE_DESCRIPTION = (
     "What a grocery costs.\n"
     "The latest price per chain from Kassalapp, with the day it was checked. "
-    "'product' is the words the person said, such as 'lettmelk' or 'Tine lettmelk 1 liter'. "
+    "'product' is the words the person said, such as 'lettmelk' or 'Tine lettmelk 1 liter', "
+    "or the name or barcode ('ean') of a choice the last answer offered. "
     "'chain' is a chain's name, such as 'Meny' or 'Joker'; omit it for every chain."
 )
 
 CHEAPEST_DESCRIPTION = (
     "Which chain is cheapest?\n"
     "Ranks the chains by their current price from Kassalapp; a price unchecked for 14 days never counts. "
-    "'product' is the words the person said, such as 'kaffe' or 'Tine lettmelk 1 liter'."
+    "'product' is the words the person said, such as 'kaffe', "
+    "or the name or barcode ('ean') of a choice the last answer offered."
 )
 
 

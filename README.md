@@ -13,7 +13,7 @@ not per shop. Price data comes from [Kassalapp](https://kassal.app).
 Try it on made-up prices, with no key and nothing sent:
 
 ```console
-$ kassalapp-mcp price "fjellmelk lett" --chain Meny --simulate
+$ kassalapp-mcp price "fjellmelk lett 1 l" --chain Meny --simulate
 Simulated: Fjellmelk lett 1 l costs 26.90 at Meny, checked today. Kassalapp's prices are per chain, not per shop.
 $ kassalapp-mcp price fjellmelk --simulate
 Simulated: Which one: Fjellmelk lett 1 l, Fjellmelk hel 1 l or Fjellmelk skummet 1 l?

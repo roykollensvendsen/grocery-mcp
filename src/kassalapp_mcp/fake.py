@@ -4,7 +4,7 @@ Its products and chains are made up, as Kassalapp's terms ask: no extract of
 the real database is published. It keeps the real service's limits, so the
 plugin cannot pass here and fail there:
 
-* search needs at least three characters, and its price has no date;
+* search is fuzzy, needs at least three characters, and its price has no date;
 * bulk prices may come as strings;
 * a wrong key gets 401, and too many calls get 429 with ``Retry-After``;
 * Kiwi's price is from 2024, as Kassalapp no longer fetches that chain.
@@ -104,8 +104,12 @@ class FakeKassalapp:
     def _search(self, words: str) -> httpx.Response:
         if len(words) < MIN_SEARCH:
             return httpx.Response(422, json={"message": "The search must be at least 3 characters."})
+        # The real search is fuzzy: any word may match, and the best matches come first.
         wanted = words.lower().split()
-        hits = [p for p in self.products if all(w in p.name.lower() for w in wanted)]
+        scored = [
+            (sum(w in p.name.lower().split() for w in wanted), n, p) for n, p in enumerate(self.products)
+        ]
+        hits = [p for score, _, p in sorted(scored, key=lambda t: (-t[0], t[1])) if score][:10]
         # The real search gives a plain number with no date, and often no store.
         data = [
             {"id": n, "name": p.name, "ean": p.ean, "current_price": 0.0, "store": None}

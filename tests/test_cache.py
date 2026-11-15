@@ -37,10 +37,10 @@ def _calls(fake, ending):
 def test_the_same_question_twice_in_six_hours_costs_no_second_call(fake):
     clock = Clock(dt.datetime(2026, 11, 14, 12, 0, tzinfo=OSLO))
     answers = PriceAnswers(_cached(fake, clock), today=lambda: clock().date())
-    first = answers.grocery_price("fjellmelk lett", chain="Meny")
+    first = answers.grocery_price("fjellmelk lett 1 l", chain="Meny")
     calls = len(fake.requests)
     clock.at += dt.timedelta(hours=5, minutes=59)
-    second = answers.grocery_price("fjellmelk lett", chain="Meny")
+    second = answers.grocery_price("fjellmelk lett 1 l", chain="Meny")
     assert len(fake.requests) == calls
     assert second["say"].startswith(first["say"].split(" Kassalapp's")[0])
 
@@ -81,9 +81,10 @@ def test_a_price_fetched_in_the_night_is_held_until_ten(fake):
 def test_words_that_found_one_product_are_kept_for_good(fake):
     clock = Clock(dt.datetime(2026, 11, 14, 12, 0, tzinfo=OSLO))
     source = _cached(fake, clock)
-    assert source.find("Fjellmelk  LETT") == [LETT]
+    coffee = Product("7000000000055", "Bergkaffe filtermalt 500 g")
+    assert source.find("Bergkaffe") == [coffee]
     clock.at += dt.timedelta(days=400)
-    assert source.find("fjellmelk lett") == [LETT]
+    assert source.find("  bergkaffe ") == [coffee]
     assert _calls(fake, "/products") == 1
 
 

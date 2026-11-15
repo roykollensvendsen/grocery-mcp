@@ -88,6 +88,13 @@ class CachedSource:
                 self._db.execute("INSERT OR REPLACE INTO words VALUES (?, ?, ?)", (key, *_pair(found[0])))
         return found
 
+    def remember(self, words: str, product: Product) -> None:
+        """Keep the product chosen for these words, so the same words ask nothing next time."""
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO words VALUES (?, ?, ?)", (normalised(words), *_pair(product))
+            )
+
     def prices(self, products: list[Product]) -> list[ItemPrice]:
         """Each chain's latest price for each product."""
         now = self._now()

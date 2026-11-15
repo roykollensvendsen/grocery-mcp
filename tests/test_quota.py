@@ -150,23 +150,23 @@ def test_sixty_of_our_own_calls_in_a_minute_stop_the_next(fake, quota):
 def test_while_backing_off_the_cache_answers_with_its_age(fake, quota, clock):
     cached = CachedSource(_source(fake, quota), ":memory:", now=clock, on_hit=quota.cache_hit)
     answers = PriceAnswers(cached, today=lambda: clock().date())
-    answers.grocery_price("fjellmelk lett", chain="Meny")
+    answers.grocery_price("fjellmelk lett 1 l", chain="Meny")
     clock.at += dt.timedelta(hours=7)
     fake.retry_after = 30
-    answer = answers.grocery_price("fjellmelk lett", chain="Meny")
+    answer = answers.grocery_price("fjellmelk lett 1 l", chain="Meny")
     assert answer["say"].startswith("Fjellmelk lett 1 l costs 26.90 at Meny, checked today.")
 
 
 def test_with_nothing_cached_backing_off_is_one_sentence(fake, quota, clock):
     cached = CachedSource(_source(fake, quota), ":memory:", now=clock, on_hit=quota.cache_hit)
     fake.retry_after = 30
-    answer = PriceAnswers(cached, today=lambda: clock().date()).grocery_price("fjellmelk lett")
+    answer = PriceAnswers(cached, today=lambda: clock().date()).grocery_price("fjellmelk lett 1 l")
     assert answer["say"] == SLOW_DOWN
 
 
 def test_each_call_is_one_line_in_the_usage_log(fake, quota, tmp_path, clock):
     source = _source(fake, quota)
-    source.find("fjellmelk lett")
+    source.find("fjellmelk lett 1 l")
     source.prices([LETT])
     lines = [json.loads(x) for x in (tmp_path / "usage.jsonl").read_text().splitlines()]
     assert [x["endpoint"] for x in lines] == ["/products", "/products/prices-bulk"]
@@ -181,7 +181,7 @@ def test_each_call_is_one_line_in_the_usage_log(fake, quota, tmp_path, clock):
 
 def test_the_usage_log_never_holds_a_search_word_or_barcode(fake, quota, tmp_path):
     source = _source(fake, quota)
-    source.find("fjellmelk lett")
+    source.find("fjellmelk lett 1 l")
     source.prices([LETT])
     fake.retry_after = 5
     with pytest.raises(SlowDownError):
@@ -194,8 +194,8 @@ def test_the_usage_log_never_holds_a_search_word_or_barcode(fake, quota, tmp_pat
 
 def test_day_totals_count_calls_cache_hits_and_429s(fake, quota, tmp_path, clock):
     cached = CachedSource(_source(fake, quota), ":memory:", now=clock, on_hit=quota.cache_hit)
-    cached.find("fjellmelk lett")
-    cached.find("fjellmelk lett")
+    cached.find("bergkaffe")
+    cached.find("bergkaffe")
     cached.prices([LETT])
     cached.prices([LETT])
     fake.retry_after = 5
