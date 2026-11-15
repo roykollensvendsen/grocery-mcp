@@ -27,6 +27,8 @@ def mutate(tmp_path, monkeypatch):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     monkeypatch.setattr(module, "MUTATE_TMP", tmp_path / "mutate-tmp", raising=False)
+    # These checkouts hold no package; the package check has tests of its own.
+    monkeypatch.setattr(module, "check_the_package", lambda: None)
     return module
 
 

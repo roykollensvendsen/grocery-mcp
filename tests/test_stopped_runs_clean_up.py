@@ -61,6 +61,7 @@ def _runner(project, tmp_path, then=""):
             mutate.ROWS = mutate.ROOT / "scripts/mutations"
             mutate.RECOVERY = pathlib.Path({str(tmp_path / "recovery.json")!r})
             mutate.MUTATE_TMP = pathlib.Path({str(tmp_path / "mutate-tmp")!r})
+            mutate.check_the_package = lambda: None  # no package here; it has tests of its own
             sys.argv = ["mutate.py"]
         """)
         + textwrap.dedent(then)

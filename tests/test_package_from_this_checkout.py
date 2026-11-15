@@ -118,3 +118,13 @@ def test_a_quality_run_checks_the_package_before_it_measures(monkeypatch):
     with pytest.raises(SystemExit, match="another checkout"):
         ratchet.measure()
     assert ran == []
+
+
+def test_a_mutation_run_refuses_a_checkout_with_no_package(tmp_path, monkeypatch):
+    """With nothing under src/ to check, the check would pass having checked nothing."""
+    mutate = _load("mutate")
+    (tmp_path / "src").mkdir()
+    monkeypatch.setattr(mutate, "ROOT", tmp_path)
+    with pytest.raises(SystemExit, match="no package") as refused:
+        mutate.check_the_package()
+    assert str(tmp_path / "src") in str(refused.value)
