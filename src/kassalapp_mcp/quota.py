@@ -18,6 +18,7 @@ import logging
 import math
 import os
 import pathlib
+import re
 import tempfile
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
@@ -41,6 +42,7 @@ KEEP_DAYS = 90
 _HEADER = "x-ratelimit-"
 #: The bridge shows at most this many figures, and this much of ``say``.
 MOST_FIGURES = 8
+FIGURE_NAME = re.compile(r"[a-z_]{1,32}")
 SAY_MAX = 120
 
 
@@ -196,19 +198,23 @@ class Quota:
             figures["waiting_seconds"] = waiting
         # A header Kassalapp adds one day, such as a daily limit, shows as a figure of its own.
         for header, value in sorted(full["headers"].items()):
-            name = "ratelimit_" + header.removeprefix(_HEADER).replace("-", "_")
-            if header not in (_HEADER + "limit", _HEADER + "remaining") and value.isdigit():
-                figures.setdefault(name[:32], int(value))
+            name = ("ratelimit_" + header.removeprefix(_HEADER).replace("-", "_"))[:32]
+            known = header in (_HEADER + "limit", _HEADER + "remaining")
+            # The bridge refuses any other name, so one that would not fit is left out.
+            if not known and value.isdigit() and FIGURE_NAME.fullmatch(name):
+                figures.setdefault(name, int(value))
         left, limit = full["remaining"], full["limit_per_min"]
         if full["level"] == "backing_off":
-            say = f"Waiting {waiting} s, as Kassalapp asked"
+            # The end of the wait, not its length, which would be wrong as soon as it is read.
+            until = dt.datetime.fromisoformat(full["backing_off_until"])
+            say = f"Waiting until {until:%H:%M:%S}, as Kassalapp asked"
         elif left is None or limit is None:
             calls = full["calls_today"]
             say = f"{calls} call{'' if calls == 1 else 's'} today; Kassalapp has not said how many are left"
         else:
             say = f"{'Low: ' if full['level'] == 'warn' else ''}{left} of {limit} calls left this minute"
         return {
-            "at": (self._seen_at or self._now()).isoformat(),
+            "at": self._now().isoformat(),
             "ok": full["level"] == "ok",
             "say": say[:SAY_MAX],
             "figures": dict(list(figures.items())[:MOST_FIGURES]),
