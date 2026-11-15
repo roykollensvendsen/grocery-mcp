@@ -30,10 +30,15 @@ def _mutate():
     return module
 
 
+#: This project's own scripts. The scaffold's tools, such as mutate.py, carry rules
+#: of their own, and those are guarded where the scaffold is kept, not here.
+OWN_SCRIPTS = (ROOT / "scripts/private_data_scan.py",)
+
+
 def marked_rules() -> set[str]:
     """Every rule the source marks, by the words the marker gives it."""
     found = set()
-    for source in sorted((ROOT / "src").rglob("*.py")):
+    for source in [*sorted((ROOT / "src").rglob("*.py")), *OWN_SCRIPTS]:
         for line in source.read_text().splitlines():
             match = MARKER.search(line)
             if match:

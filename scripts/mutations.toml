@@ -128,3 +128,9 @@ name = "remembered words are forgotten after ninety days unused"
 file = "src/kassalapp_mcp/cache.py"
 find = '"DELETE FROM words WHERE used IS NULL OR used < \?"'
 replace = '"DELETE FROM words WHERE used IS NULL AND used < ?"'
+
+[[rule]]
+name = "a broken private list refuses the commit never skips the check"
+file = "scripts/private_data_scan.py"
+find = 'if words.exists\(\):'
+replace = 'if words.is_file():'
