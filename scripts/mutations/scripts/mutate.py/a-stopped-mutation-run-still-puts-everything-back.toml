@@ -1,5 +1,5 @@
 [[rule]]
 name = "a stopped mutation run still puts everything back"
 file = "scripts/mutate.py"
-find = '^    signal\.signal\(signal\.SIGTERM, stop\)$'
+find = '^        signal\.signal\(each, stop\)$'
 replace = 'pass'
