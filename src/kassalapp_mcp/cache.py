@@ -29,6 +29,9 @@ if TYPE_CHECKING:
     from kassalapp_mcp.source import PriceSource
 
 #: How long Kassalapp asks a price to be kept.
+#: Words unused this long are forgotten: Kassalapp may since have added a closer match,
+#: and the words are the user's shopping, which needs no keeping for good.
+FORGET_WORDS = dt.timedelta(days=90)
 KEEP_PRICE = dt.timedelta(hours=6)
 #: Before this hour the day's new prices have not started; until the next they may be arriving.
 UPDATE_STARTS = dt.time(9, 0)
@@ -77,7 +80,12 @@ class CachedSource:
         # The MCP library may run a tool on a worker thread; the lock keeps one writer at a time.
         self._db = sqlite3.connect(str(path), check_same_thread=False)
         with self._db:
-            self._db.execute("CREATE TABLE IF NOT EXISTS words (words TEXT PRIMARY KEY, ean TEXT, name TEXT)")
+            self._db.execute(
+                "CREATE TABLE IF NOT EXISTS words (words TEXT PRIMARY KEY, ean TEXT, name TEXT, used TEXT)"
+            )
+            columns = [row[1] for row in self._db.execute("PRAGMA table_info(words)")]
+            if "used" not in columns:  # a cache from before words were forgotten
+                self._db.execute("ALTER TABLE words ADD COLUMN used TEXT")
             self._db.execute(
                 "CREATE TABLE IF NOT EXISTS prices (ean TEXT PRIMARY KEY, until TEXT, rows TEXT)"
             )
@@ -85,22 +93,32 @@ class CachedSource:
     def find(self, words: str) -> list[Product]:
         """The products the spoken words could mean."""
         key = normalised(words)
-        with self._lock:
+        now = self._now()
+        with self._lock, self._db:
+            # RULE: remembered words are forgotten after ninety days unused
+            self._db.execute(
+                "DELETE FROM words WHERE used IS NULL OR used < ?", ((now - FORGET_WORDS).isoformat(),)
+            )
             row = self._db.execute("SELECT ean, name FROM words WHERE words = ?", (key,)).fetchone()
+            if row:
+                self._db.execute("UPDATE words SET used = ? WHERE words = ?", (now.isoformat(), key))
         if row:
             self._on_hit()
             return [Product(row[0], row[1])]
         found = self._inner.find(words)
         if len(found) == 1:
-            with self._lock, self._db:
-                self._db.execute("INSERT OR REPLACE INTO words VALUES (?, ?, ?)", (key, *_pair(found[0])))
+            self._keep_words(key, found[0])
         return found
 
     def remember(self, words: str, product: Product) -> None:
         """Keep the product chosen for these words, so the same words ask nothing next time."""
+        self._keep_words(normalised(words), product)
+
+    def _keep_words(self, key: str, product: Product) -> None:
         with self._lock, self._db:
             self._db.execute(
-                "INSERT OR REPLACE INTO words VALUES (?, ?, ?)", (normalised(words), *_pair(product))
+                "INSERT OR REPLACE INTO words VALUES (?, ?, ?, ?)",
+                (key, *_pair(product), self._now().isoformat()),
             )
 
     def prices(self, products: list[Product]) -> list[ItemPrice]:

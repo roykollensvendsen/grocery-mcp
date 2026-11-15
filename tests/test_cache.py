@@ -78,12 +78,12 @@ def test_a_price_fetched_in_the_night_is_held_until_ten(fake):
     assert _calls(fake, "prices-bulk") == 1
 
 
-def test_words_that_found_one_product_are_kept_for_good(fake):
+def test_words_that_found_one_product_are_kept_while_in_use(fake):
     clock = Clock(dt.datetime(2026, 11, 14, 12, 0, tzinfo=OSLO))
     source = _cached(fake, clock)
     coffee = Product("7000000000055", "Bergkaffe filtermalt 500 g")
     assert source.find("Bergkaffe") == [coffee]
-    clock.at += dt.timedelta(days=400)
+    clock.at += dt.timedelta(days=89)
     assert source.find("  bergkaffe ") == [coffee]
     assert _calls(fake, "/products") == 1
 
@@ -139,3 +139,17 @@ def test_the_morning_rule_follows_summer_time():
     assert kept_until(dt.datetime(2026, 7, 1, 7, 30, tzinfo=utc)) == dt.datetime(
         2026, 7, 1, 13, 30, tzinfo=utc
     )
+
+
+def test_remembered_words_are_forgotten_after_ninety_days_unused(fake):
+    clock = Clock(dt.datetime(2026, 11, 14, 12, 0, tzinfo=OSLO))
+    source = _cached(fake, clock)
+    source.find("bergkaffe")
+    clock.at += dt.timedelta(days=60)
+    source.find("bergkaffe")
+    clock.at += dt.timedelta(days=60)
+    source.find("bergkaffe")
+    assert _calls(fake, "/products") == 1
+    clock.at += dt.timedelta(days=91)
+    source.find("bergkaffe")
+    assert _calls(fake, "/products") == 2
