@@ -27,6 +27,7 @@ land in a public log.
 from __future__ import annotations
 
 import argparse
+import os
 import pathlib
 import re
 import subprocess
@@ -58,8 +59,9 @@ def private_values(words: pathlib.Path, key: pathlib.Path | None) -> set[str]:
     """The owner's private words, and their key, from files outside the repository."""
     out: set[str] = set()
     # Anything in the list's place counts as a list: only a missing one means "no list".
+    # A link to a list that was moved away is there too, so lexists, not exists.
     # RULE: a broken private list refuses the commit never skips the check
-    if words.exists():
+    if os.path.lexists(words):
         try:
             listed = tomllib.loads(words.read_text(encoding="utf-8")).get("words", [])
         except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError) as error:

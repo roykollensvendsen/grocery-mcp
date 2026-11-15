@@ -132,5 +132,5 @@ replace = '"DELETE FROM words WHERE used IS NULL AND used < ?"'
 [[rule]]
 name = "a broken private list refuses the commit never skips the check"
 file = "scripts/private_data_scan.py"
-find = 'if words.exists\(\):'
-replace = 'if words.is_file():'
+find = 'if os.path.lexists\(words\):'
+replace = 'if words.exists():'

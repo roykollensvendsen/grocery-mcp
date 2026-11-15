@@ -83,11 +83,16 @@ def test_a_private_list_without_a_list_of_words_refuses_the_commit(tmp_path, cap
 
 
 def test_a_broken_private_list_refuses_the_commit_never_skips_the_check(tmp_path, capsys):
-    # A folder in the list's place must not read as "no list", which would check nothing.
-    words = tmp_path / "private.toml"
-    words.mkdir()
-    assert private_data_scan.main(["--tracked", "--words", str(words)]) == 1
-    assert "private.toml can't be read" in capsys.readouterr().err
+    # Neither a folder in the list's place nor a link to a list moved away may read
+    # as "no list", which would check nothing.
+    folder = tmp_path / "folder" / "private.toml"
+    folder.mkdir(parents=True)
+    link = tmp_path / "link" / "private.toml"
+    link.parent.mkdir()
+    link.symlink_to(tmp_path / "moved-away.toml")
+    for words in (folder, link):
+        assert private_data_scan.main(["--tracked", "--words", str(words)]) == 1, words.parent.name
+        assert "private.toml can't be read" in capsys.readouterr().err
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root reads any file")
