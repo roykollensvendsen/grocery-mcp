@@ -20,6 +20,8 @@ import zoneinfo
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+import httpx
+
 from kassalapp_mcp.source import ItemPrice, Product, SlowDownError
 
 if TYPE_CHECKING:
@@ -29,10 +31,10 @@ if TYPE_CHECKING:
     from kassalapp_mcp.source import PriceSource
 
 #: How long Kassalapp asks a price to be kept.
+KEEP_PRICE = dt.timedelta(hours=6)
 #: Words unused this long are forgotten: Kassalapp may since have added a closer match,
 #: and the words are the user's shopping, which needs no keeping for good.
 FORGET_WORDS = dt.timedelta(days=90)
-KEEP_PRICE = dt.timedelta(hours=6)
 #: Before this hour the day's new prices have not started; until the next they may be arriving.
 UPDATE_STARTS = dt.time(9, 0)
 UPDATE_SETTLED = dt.time(10, 0)
@@ -144,8 +146,8 @@ class CachedSource:
             return kept
         try:
             fetched = self._inner.prices(missing)
-        except SlowDownError:
-            # While Kassalapp asks us to wait, an old answer still says its own age.
+        except (SlowDownError, httpx.TransportError):
+            # While Kassalapp asks us to wait, or cannot be reached, an old answer still says its own age.
             if any(p.ean not in old for p in missing):
                 raise
             self._on_hit()
