@@ -13,7 +13,7 @@ import pytest
 
 from kassalapp_mcp.answers import PriceAnswers
 from kassalapp_mcp.fake import FAKE_KEY, FakeKassalapp, FakeProduct
-from kassalapp_mcp.source import KassalappSource, SlowDownError
+from kassalapp_mcp.source import KassalappSource, Product, SlowDownError
 
 TODAY = dt.date(2026, 11, 15)
 EVERYWHERE = {
@@ -140,3 +140,32 @@ def test_a_duplicate_with_no_current_price_is_offered_after_the_one_with_prices(
         "Sjokoladedrikk 450g boks Kakaogård",
         "Kakaogård Sjokoladedrikk Fjellbris",
     ]
+
+
+class _ManyMatches:
+    """A source whose search finds more products than one question should rank."""
+
+    name = "kassalapp"
+
+    def __init__(self, count):
+        self.found = [Product(f"70000000{n:05d}", f"Lettmelk {n}") for n in range(count)]
+        self.asked_prices = []
+
+    def find(self, _words):
+        return self.found
+
+    def prices(self, products):
+        self.asked_prices.append(list(products))
+        return []
+
+    def remember(self, words, product):
+        pass
+
+
+def test_ranking_the_choices_costs_at_most_one_price_call():
+    """A broad name could match a hundred products; ranking them all would cost a call per hundred."""
+    source = _ManyMatches(150)
+    answer = PriceAnswers(source, today=lambda: TODAY).grocery_price("lettmelk")
+    assert answer["outcome"] == "ask"
+    assert [len(asked) for asked in source.asked_prices] == [20]
+    assert [c["name"] for c in answer["choices"]] == ["Lettmelk 0", "Lettmelk 1", "Lettmelk 2"]
