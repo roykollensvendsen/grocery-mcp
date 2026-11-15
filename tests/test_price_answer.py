@@ -109,3 +109,24 @@ def test_every_answer_has_something_to_say_and_an_outcome(answers):
         assert answer["say"]
         assert answer["outcome"]
         assert "success" in answer
+
+
+def test_a_shop_named_by_place_finds_its_chain_and_says_prices_are_per_chain(answers):
+    answers.grocery_price("fjellmelk lett 1 l", chain="Meny")
+    answer = answers.grocery_price("fjellmelk lett 1 l", chain="at the Meny in town")
+    assert answer["outcome"] == "price"
+    assert answer["say"].startswith("Fjellmelk lett 1 l costs 26.90 at Meny, checked today.")
+    assert answer["say"].endswith("Kassalapp's prices are per chain, not per shop.")
+
+
+def test_a_shop_of_a_chain_kassalapp_does_not_fetch_names_the_chain_alone(answers):
+    answer = answers.grocery_price("fjellmelk lett 1 l", chain="the Kiwi by the station")
+    assert answer["say"].startswith("Kassalapp has no current prices from Kiwi;")
+
+
+def test_an_unknown_shop_is_named_without_a_doubled_at(answers):
+    answer = answers.grocery_price("bergkaffe", chain="at the corner shop")
+    assert "at at" not in answer["say"]
+    assert answer["say"].startswith(
+        "Kassalapp has no price for Bergkaffe filtermalt 500 g at the corner shop."
+    )
