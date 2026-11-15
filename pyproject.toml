@@ -60,6 +60,10 @@ warn_unused_configs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Keep a test's temporary files only when it fails, and only the last run's: a
+# mutation run starts the suite once per rule, and kept folders fill the disk.
+tmp_path_retention_policy = "failed"
+tmp_path_retention_count = 1
 
 [tool.coverage.run]
 branch = true

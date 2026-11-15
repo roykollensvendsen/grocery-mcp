@@ -21,11 +21,12 @@ ROOT = pathlib.Path(__file__).parent.parent
 
 
 @pytest.fixture
-def mutate():
-    """The runner, loaded by path: scripts/ is not a package."""
+def mutate(tmp_path, monkeypatch):
+    """The runner, loaded by path, with its temporary folder under `tmp_path`."""
     spec = importlib.util.spec_from_file_location("mutate_runner", ROOT / "scripts/mutate.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "MUTATE_TMP", tmp_path / "mutate-tmp", raising=False)
     return module
 
 
@@ -119,7 +120,8 @@ def sweep():
 
 def _inside_repair(text, rows, mutate):
     """The rules marked, or switched off by a row, in `repair()` or any function of `text` it calls."""
-    functions = {f.name: f for f in ast.parse(text).body if isinstance(f, ast.FunctionDef)}
+    defs = (ast.FunctionDef, ast.AsyncFunctionDef)
+    functions = {f.name: f for f in ast.parse(text).body if isinstance(f, defs)}
     assert UNPROVABLE in functions, (
         f"no {UNPROVABLE}() in the runner; if it was renamed, rename UNPROVABLE too"
     )
@@ -177,3 +179,19 @@ def test_a_runner_with_no_repair_is_refused_by_name(mutate):
     """Renamed, repair() would leave the guard checking nothing; it says what it looked for."""
     with pytest.raises(AssertionError, match=r"no repair\(\) in"):
         _inside_repair("def mend():\n    pass\n", [], mutate)
+
+
+ASYNC_REPAIR_HELPER = """
+async def write(kept):
+    # RULE: a repaired file is written in the background
+    path.write_text(kept)
+
+
+def repair():
+    write(kept)
+"""
+
+
+def test_a_rule_in_an_async_helper_repair_calls_is_found(mutate):
+    """An async helper repair() calls runs switched off too."""
+    assert _inside_repair(ASYNC_REPAIR_HELPER, [], mutate) == ["a repaired file is written in the background"]
