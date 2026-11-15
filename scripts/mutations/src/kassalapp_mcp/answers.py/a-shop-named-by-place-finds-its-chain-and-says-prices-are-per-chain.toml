@@ -1,0 +1,5 @@
+[[rule]]
+name = "a shop named by place finds its chain and says prices are per chain"
+file = "src/kassalapp_mcp/answers.py"
+find = 'at = next\(\(p for p in prices if _is_chain\(p, words\)\), None\)'
+replace = 'at = next((p for p in prices if p.chain_name.lower() == chain.strip().lower()), None)'

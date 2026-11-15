@@ -1,0 +1,5 @@
+[[rule]]
+name = "without a key nothing is sent"
+file = "src/kassalapp_mcp/source.py"
+find = 'if not key:'
+replace = 'if False:'
