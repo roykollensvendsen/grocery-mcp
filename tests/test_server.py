@@ -86,3 +86,31 @@ def test_the_two_tool_names_do_not_sound_alike():
     names = sorted(_tools(_server()))
     assert names == ["grocery_cheapest", "grocery_price"]
     assert names[0].split("_")[1][:3] != names[1].split("_")[1][:3]
+
+
+def test_an_error_from_kassalapp_is_put_on_kassalapp(caplog):
+    fake = FakeKassalapp(today=TODAY)
+    fake.fail_with = 503
+    with caplog.at_level("WARNING"):
+        answer = _call(_server(fake), "grocery_price", {"product": "fjellmelk lett 1 l"})
+    assert answer["outcome"] == "kassalapp_error"
+    assert answer["say"] == "Kassalapp answered with an error; try again in a few minutes."
+    assert "503" in caplog.text
+    assert "/products" in caplog.text
+    assert "fjellmelk" not in caplog.text
+
+
+def test_a_failure_inside_the_plugin_is_logged_without_the_words(caplog):
+    class Broken:
+        def grocery_price(self, product, chain=None):
+            message = f"broke on {product} at {chain}"
+            raise RuntimeError(message)
+
+        def grocery_cheapest(self, product):
+            return self.grocery_price(product)
+
+    with caplog.at_level("ERROR"):
+        answer = _call(build_server(Broken()), "grocery_price", {"product": "fjellmelk lett 1 l"})
+    assert answer["say"].startswith("That went wrong inside kassalapp-mcp.")
+    assert "RuntimeError" in caplog.text
+    assert "fjellmelk" not in caplog.text

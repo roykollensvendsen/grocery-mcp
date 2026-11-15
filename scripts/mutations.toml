@@ -42,8 +42,8 @@ replace = 'current = sorted((p for p in prices if p.seen_at is not None), key=la
 [[rule]]
 name = "every tool answers with a sentence even when it fails"
 file = "src/kassalapp_mcp/server.py"
-find = 'except httpx.TransportError:'
-replace = 'except ZeroDivisionError:'
+find = 'except httpx.TransportError as failure:'
+replace = 'except ZeroDivisionError as failure:'
 
 [[rule]]
 name = "search words are never logged"
@@ -98,3 +98,9 @@ name = "answering an offered choice gives a price never the question again"
 file = "src/kassalapp_mcp/answers.py"
 find = 'if len\(found\) == 1 or len\(exact\) == 1:'
 replace = 'if len(found) == 1:'
+
+[[rule]]
+name = "an error from kassalapp is put on kassalapp"
+file = "src/kassalapp_mcp/server.py"
+find = 'except httpx.HTTPStatusError as failure:'
+replace = 'except ZeroDivisionError as failure:'

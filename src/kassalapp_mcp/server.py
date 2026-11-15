@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import functools
+import logging
+import traceback
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -13,6 +15,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from kassalapp_mcp.answers import PriceAnswers
+
+log = logging.getLogger(__name__)
 
 #: The Claude app shows about this many characters of a tool before loading it.
 FIRST_LINE_MAX = 26
@@ -27,6 +31,8 @@ SIMULATED = "SIMULATED prices, not real ones: say so. "
 DROPPED = "Kassalapp did not answer; try again in a minute."
 #: What the voice hears when the plugin itself fails, so it never hears only that the tool failed.
 BROKE = "That went wrong inside kassalapp-mcp. Try again, and if it fails again, check its log."
+#: What the voice hears when Kassalapp answers, but with an error of its own.
+KASSALAPP_ERROR = "Kassalapp answered with an error; try again in a few minutes."
 
 PRICE_DESCRIPTION = (
     "What a grocery costs.\n"
@@ -73,9 +79,19 @@ def _guarded(*, simulated: bool) -> Callable[[Callable[..., dict[str, Any]]], Ca
             try:
                 answer = tool(*args, **kwargs)
             # RULE: every tool answers with a sentence even when it fails
-            except httpx.TransportError:
+            except httpx.TransportError as failure:
+                log.warning("%s: Kassalapp did not answer (%s)", tool.__name__, type(failure).__name__)
                 answer = {"success": False, "outcome": "unreachable", "say": DROPPED}
-            except Exception:  # noqa: BLE001 - whatever broke, the voice gets a sentence
+            # RULE: an error from kassalapp is put on kassalapp
+            except httpx.HTTPStatusError as failure:
+                # The path only: the query holds the search words, which are the user's shopping.
+                status, path = failure.response.status_code, failure.request.url.path
+                log.warning("%s: Kassalapp answered %d on %s", tool.__name__, status, path)
+                answer = {"success": False, "outcome": "kassalapp_error", "say": KASSALAPP_ERROR}
+            except Exception as failure:  # noqa: BLE001 - whatever broke, the voice gets a sentence
+                # The type and where it broke, never the message: it may quote the search words.
+                where = "".join(traceback.format_tb(failure.__traceback__))
+                log.error("%s broke: %s\n%s", tool.__name__, type(failure).__name__, where)  # noqa: TRY400
                 answer = {"success": False, "outcome": "broke", "say": BROKE}
             answer["simulated"] = simulated
             if simulated:
