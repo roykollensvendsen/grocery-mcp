@@ -8,6 +8,7 @@ they measure, in a fresh interpreter set up as the measuring steps will be.
 
 import importlib.util
 import pathlib
+import subprocess
 
 import pytest
 
@@ -65,3 +66,55 @@ def test_a_mutation_run_checks_the_package_before_it_measures(tmp_path, monkeypa
     monkeypatch.setattr(mutate, "check_the_package", refused)
     with pytest.raises(SystemExit, match="another checkout"):
         mutate.main()
+
+
+def _package_found_at(monkeypatch, ratchet, where, returncode=0):
+    asked = []
+
+    def run(*command, **_):
+        asked.append(command)
+        return subprocess.CompletedProcess(command, returncode, f"{where}\n", "No module named kassalapp_mcp")
+
+    monkeypatch.setattr(ratchet, "_run", run)
+    return asked
+
+
+def test_a_quality_run_refuses_a_package_from_another_checkout(monkeypatch, tmp_path):
+    """Measured from another worktree's source, the levels would be that worktree's."""
+    ratchet = _load("ratchet")
+    other = tmp_path / "other/src/kassalapp_mcp/__init__.py"
+    asked = _package_found_at(monkeypatch, ratchet, other)
+    with pytest.raises(SystemExit, match="uv sync") as refused:
+        ratchet.check_the_package()
+    assert str(other.parent) in str(refused.value)
+    assert str(ratchet.SOURCE) in str(refused.value)
+    assert asked == [("uv", "run", "python", "-c", "import kassalapp_mcp; print(kassalapp_mcp.__file__)")]
+
+
+def test_a_quality_run_measures_a_package_from_its_own_checkout(monkeypatch):
+    ratchet = _load("ratchet")
+    _package_found_at(monkeypatch, ratchet, ratchet.PACKAGE / "__init__.py")
+    ratchet.check_the_package()
+
+
+def test_a_package_that_will_not_import_is_refused_too(monkeypatch):
+    ratchet = _load("ratchet")
+    _package_found_at(monkeypatch, ratchet, "", returncode=1)
+    with pytest.raises(SystemExit, match="No module named kassalapp_mcp"):
+        ratchet.check_the_package()
+
+
+def test_a_quality_run_checks_the_package_before_it_measures(monkeypatch):
+    """The base's copy is measured by the same function, so it is checked too."""
+    ratchet = _load("ratchet")
+
+    def refused():
+        msg = "from another checkout"
+        raise SystemExit(msg)
+
+    ran = []
+    monkeypatch.setattr(ratchet, "check_the_package", refused)
+    monkeypatch.setattr(ratchet, "_run", lambda *c, **_: ran.append(c))
+    with pytest.raises(SystemExit, match="another checkout"):
+        ratchet.measure()
+    assert ran == []
