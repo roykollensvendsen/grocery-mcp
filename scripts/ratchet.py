@@ -291,9 +291,10 @@ def _run(
     The child runs in a session of its own, so a Ctrl-C in the terminal reaches it only
     through this script, once. Stopped, this script passes the stop on as a Ctrl-C to the
     child alone, not its group: a `uv run` step passes it on itself, and a step told twice
-    cuts its own clean-up short. Then it waits for the child to clean up, with no time
-    limit, since runs never have one. A child that hangs after that can be ended by hand,
-    group and all: ``kill -9 -- -<its pid>``.
+    cuts its own clean-up short. A step started any other way hears it only from here.
+    Then it waits for the child to clean up, with no time limit, since runs never have
+    one. A child that hangs after that can be ended by hand, group and all:
+    ``kill -9 -- -<its pid>``.
     What it prints goes to temporary files rather than pipes, which could fill and stall it.
     """
     with tempfile.TemporaryFile("w+") as out, tempfile.TemporaryFile("w+") as err:
