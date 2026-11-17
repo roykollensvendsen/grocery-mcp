@@ -542,8 +542,9 @@ def test_the_quality_check_s_child_hears_a_stop_only_through_it(tmp_path):
 
 
 #: A child that counts each Ctrl-C it hears, and waits a while for any later one.
+#: Never told, it gives up after a minute, so a failed test leaves nothing running.
 COUNTING_CHILD = """
-import pathlib, signal, sys, time
+import os, pathlib, signal, sys, time
 here = pathlib.Path(sys.argv[1])
 heard = []
 
@@ -552,8 +553,9 @@ def stopped(_signum, _frame):
     (here / "heard").write_text(str(len(heard)))
 
 signal.signal(signal.SIGINT, stopped)
-(here / "child").write_text("started")
-while not heard:
+(here / "child").write_text(str(os.getpid()))
+deadline = time.monotonic() + 60
+while not heard and time.monotonic() < deadline:
     time.sleep(0.05)
 time.sleep(2)
 (here / "child-cleaned").write_text(str(len(heard)))
@@ -588,6 +590,16 @@ def test_the_quality_check_tells_its_child_to_stop_exactly_once(tmp_path):
         assert (tmp_path / "child-cleaned").read_text(encoding="utf-8") == "1"
     finally:
         running.kill()
+        _stop_the_counting_child(tmp_path)
+
+
+def _stop_the_counting_child(tmp_path):
+    """End the step if it is still going, and only if that pid is still this test's step."""
+    with __import__("contextlib").suppress(FileNotFoundError, ProcessLookupError, ValueError):
+        pid = int((tmp_path / "child").read_text(encoding="utf-8"))
+        command = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes()
+        if str(tmp_path / "child.py").encode() in command:
+            os.kill(pid, signal.SIGKILL)
 
 
 #: The stop cannot reach the child, as when it ended just as the stop came.
