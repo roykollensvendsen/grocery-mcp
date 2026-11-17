@@ -1,0 +1,5 @@
+[[rule]]
+name = "the quality check tells its child to stop exactly once"
+file = "scripts/ratchet.py"
+find = '^                os\.kill\(child\.pid, signal\.SIGINT\)$'
+replace = 'os.killpg(child.pid, signal.SIGINT)'

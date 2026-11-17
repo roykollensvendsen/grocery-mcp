@@ -541,12 +541,61 @@ def test_the_quality_check_s_child_hears_a_stop_only_through_it(tmp_path):
         _stop_child(tmp_path)
 
 
-#: The stop cannot reach the child's group, as when the child shares this session.
+#: A child that counts each Ctrl-C it hears, and waits a while for any later one.
+COUNTING_CHILD = """
+import pathlib, signal, sys, time
+here = pathlib.Path(sys.argv[1])
+heard = []
+
+def stopped(_signum, _frame):
+    heard.append(1)
+    (here / "heard").write_text(str(len(heard)))
+
+signal.signal(signal.SIGINT, stopped)
+(here / "child").write_text("started")
+while not heard:
+    time.sleep(0.05)
+time.sleep(2)
+(here / "child-cleaned").write_text(str(len(heard)))
+"""
+
+
+def test_the_quality_check_tells_its_child_to_stop_exactly_once(tmp_path):
+    """Its steps run through `uv run`, which passes a Ctrl-C on to the step it started.
+
+    Told through the whole group, the step hears the kernel's Ctrl-C and then uv's, and a
+    second Ctrl-C cuts pytest's own clean-up short. Told through uv alone, it hears one.
+    """
+    (tmp_path / "child.py").write_text(COUNTING_CHILD, encoding="utf-8")
+    step = ("uv", "run", "--no-project", "python", str(tmp_path / "child.py"), str(tmp_path))
+    script = tmp_path / "quality.py"
+    script.write_text(
+        textwrap.dedent(f"""
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("ratchet", {str(ROOT / "scripts/ratchet.py")!r})
+            ratchet = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(ratchet)
+            ratchet.stop_cleanly_when_killed()
+            ratchet._run(*{step!r})
+        """),
+        encoding="utf-8",
+    )
+    running = subprocess.Popen([sys.executable, str(script)])
+    try:
+        _waits_for((tmp_path / "child").exists, "the step never started")
+        running.send_signal(signal.SIGTERM)
+        running.wait(timeout=60)
+        assert (tmp_path / "child-cleaned").read_text(encoding="utf-8") == "1"
+    finally:
+        running.kill()
+
+
+#: The stop cannot reach the child, as when it ended just as the stop came.
 CANNOT_TELL_THE_CHILD = """
-def no_such_group(_pid, _signum):
+def no_such_child(_pid, _signum):
     raise ProcessLookupError
 
-ratchet.os.killpg = no_such_group
+ratchet.os.kill = no_such_child
 """
 
 
