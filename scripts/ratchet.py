@@ -289,9 +289,11 @@ def _run(
     """Run `command` to its end and give back what it printed.
 
     The child runs in a session of its own, so a Ctrl-C in the terminal reaches it only
-    through this script, once. Stopped, this script passes the stop on as a Ctrl-C and
-    waits for the child to clean up, with no time limit, since runs never have one. A
-    child that hangs after that can be ended by hand: ``kill -9 -- -<its pid>``.
+    through this script, once. Stopped, this script passes the stop on as a Ctrl-C to the
+    child alone, not its group: a `uv run` step passes it on itself, and a step told twice
+    cuts its own clean-up short. Then it waits for the child to clean up, with no time
+    limit, since runs never have one. A child that hangs after that can be ended by hand,
+    group and all: ``kill -9 -- -<its pid>``.
     What it prints goes to temporary files rather than pipes, which could fill and stall it.
     """
     with tempfile.TemporaryFile("w+") as out, tempfile.TemporaryFile("w+") as err:
@@ -309,7 +311,8 @@ def _run(
             child.wait()
         except BaseException:
             try:
-                os.killpg(child.pid, signal.SIGINT)
+                # RULE: the quality check tells its child to stop exactly once
+                os.kill(child.pid, signal.SIGINT)
             except ProcessLookupError:
                 # RULE: a child still going that cannot be told is not waited on
                 if child.poll() is None:  # gone only if it ended; a live child must be told
