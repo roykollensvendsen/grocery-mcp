@@ -7,7 +7,9 @@ skipped that, and every checkout and every copy has a folder named after its
 own path, so nothing came back to sweep it. Hundreds of them filled ``/tmp``.
 """
 
+import contextlib
 import importlib.util
+import json
 import os
 import pathlib
 import signal
@@ -447,7 +449,7 @@ def _mutate_on(tmp_path, monkeypatch, argv):
     monkeypatch.setattr(sys, "argv", ["mutate.py", *argv])
     (tmp_path / "code.py").write_text("x = 2\n", encoding="utf-8")
     left = {"file": "code.py", "mutated": "x = 2\n", "original": "x = 1\n"}
-    mutate.RECOVERY.write_text(__import__("json").dumps(left), encoding="utf-8")
+    mutate.RECOVERY.write_text(json.dumps(left), encoding="utf-8")
     return mutate
 
 
@@ -456,7 +458,8 @@ def test_only_one_mutation_run_goes_at_a_time_in_a_checkout(tmp_path, monkeypatc
     mutate = _mutate_on(tmp_path, monkeypatch, [])
     first = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
     try:
-        __import__("fcntl").flock(first, __import__("fcntl").LOCK_EX)
+        fcntl = __import__("fcntl")  # here, not at the top: Windows has none, and must still skip
+        fcntl.flock(first, fcntl.LOCK_EX)
         with pytest.raises(SystemExit, match="already going"):
             mutate.main()
     finally:
@@ -512,7 +515,7 @@ def _quality_check_with_a_child(tmp_path, then=""):
 
 
 def _stop_child(tmp_path):
-    with __import__("contextlib").suppress(FileNotFoundError, ProcessLookupError, ValueError):
+    with contextlib.suppress(FileNotFoundError, ProcessLookupError, ValueError):
         os.kill(int((tmp_path / "child").read_text(encoding="utf-8").split()[0]), signal.SIGKILL)
 
 
@@ -595,7 +598,7 @@ def test_the_quality_check_tells_its_child_to_stop_exactly_once(tmp_path):
 
 def _stop_the_counting_child(tmp_path):
     """End the step if it is still going, and only if that pid is still this test's step."""
-    with __import__("contextlib").suppress(FileNotFoundError, ProcessLookupError, ValueError):
+    with contextlib.suppress(FileNotFoundError, ProcessLookupError, ValueError):
         pid = int((tmp_path / "child").read_text(encoding="utf-8"))
         command = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes()
         if str(tmp_path / "child.py").encode() in command:
