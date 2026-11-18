@@ -556,6 +556,7 @@ def check_every_rule(write: pathlib.Path | None) -> int:
             print(f"testing  {rule['name']}", flush=True)  # noqa: T201
             began = time.monotonic()
             count, failed = run_suite()
+            # RULE: a mutation run says how long each rule took
             took = time.monotonic() - began
             if not restore(path, text, mutated):
                 lost.append(rule["file"])
