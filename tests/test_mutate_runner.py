@@ -15,6 +15,7 @@ import importlib.util
 import pathlib
 import re
 import subprocess
+import types
 
 import pytest
 
@@ -200,6 +201,18 @@ def test_a_rule_in_an_async_helper_repair_calls_is_found(mutate):
     assert _inside_repair(ASYNC_REPAIR_HELPER, [], mutate) == ["a repaired file is written in the background"]
 
 
+def _one_rule(tmp_path, monkeypatch, mutate):
+    """A repository with the one rule `x is one`, its row, and nothing else to set up."""
+    _scaffold(tmp_path, monkeypatch, mutate, "# RULE: x is one\nx = 1\n")
+    rows = tmp_path / "scripts/mutations/src/code.py"
+    rows.mkdir(parents=True)
+    (rows / "x-is-one.toml").write_text(
+        "[[rule]]\nname = \"x is one\"\nfile = \"src/code.py\"\nfind = '^x = 1$'\nreplace = 'x = 2'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mutate, "start", lambda: None)
+
+
 class _Pipe:
     """Output that, like a pipe in CI, shows only what has been flushed."""
 
@@ -220,14 +233,7 @@ def test_a_mutation_run_names_each_rule_before_it_tests_it(tmp_path, monkeypatch
     In CI the output is a pipe, which Python holds back until it is full. A run that hung on
     one rule would leave nothing in the log to say which, so the result line is sent at once too.
     """
-    _scaffold(tmp_path, monkeypatch, mutate, "# RULE: x is one\nx = 1\n")
-    rows = tmp_path / "scripts/mutations/src/code.py"
-    rows.mkdir(parents=True)
-    (rows / "x-is-one.toml").write_text(
-        "[[rule]]\nname = \"x is one\"\nfile = \"src/code.py\"\nfind = '^x = 1$'\nreplace = 'x = 2'\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(mutate, "start", lambda: None)
+    _one_rule(tmp_path, monkeypatch, mutate)
     pipe, seen = _Pipe(), []
     monkeypatch.setattr(mutate.sys, "stdout", pipe)
 
@@ -239,3 +245,13 @@ def test_a_mutation_run_names_each_rule_before_it_tests_it(tmp_path, monkeypatch
     mutate.check_every_rule(None)
     assert "testing  x is one\n" in seen[0], seen
     assert re.search(r"KILLED   x is one: 1 in \d+ s\n", pipe.shown), pipe.shown
+
+
+def test_a_mutation_run_says_how_long_each_rule_took(tmp_path, monkeypatch, capsys, mutate):
+    """The seconds are what show a slow rule, so they must be the suite's own time, not any number."""
+    _one_rule(tmp_path, monkeypatch, mutate)
+    clock = iter([10.0, 52.4])
+    monkeypatch.setattr(mutate, "time", types.SimpleNamespace(monotonic=lambda: next(clock)))
+    monkeypatch.setattr(mutate, "run_suite", lambda: (1, ["test_x_is_one"]))
+    mutate.check_every_rule(None)
+    assert "KILLED   x is one: 1 in 42 s\n" in capsys.readouterr().out
