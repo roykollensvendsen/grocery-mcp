@@ -63,6 +63,19 @@ def test_two_mutations_never_share_a_bytecode_cache(monkeypatch, mutate):
     assert asked["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
+def test_a_real_mutation_run_has_no_time_limit(monkeypatch, mutate):
+    """Runs are never cut short; only a test's own scratch run sets a bound."""
+    asked = _suite_says(monkeypatch, mutate, "1 passed\n", returncode=0)
+    mutate.run_suite()
+    assert asked["timeout"] is None
+
+
+def test_a_test_s_scratch_run_of_the_suite_is_bounded_by_the_test(monkeypatch, mutate):
+    asked = _suite_says(monkeypatch, mutate, "1 passed\n", returncode=0)
+    mutate.run_suite(timeout=300)
+    assert asked["timeout"] == 300
+
+
 def test_a_coloured_failure_line_is_still_attributed(monkeypatch, mutate):
     """With colour on, FAILED is wrapped in codes, and a kill must still name its test."""
     coloured = (
