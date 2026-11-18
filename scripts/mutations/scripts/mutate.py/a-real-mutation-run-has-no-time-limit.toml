@@ -1,0 +1,5 @@
+[[rule]]
+name = "a real mutation run has no time limit"
+file = "scripts/mutate.py"
+find = '^ {12}timeout=timeout,$'
+replace = 'timeout=1,'
