@@ -8,11 +8,43 @@ import contextlib
 import os
 import pathlib
 import signal
+import subprocess
 import sys
 import time
 
 import pytest
-from bounded import run_bounded
+from bounded import line_within, run_bounded
+
+
+def test_a_child_that_never_writes_fails_within_the_bound():
+    with subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"], stdout=subprocess.PIPE, text=True
+    ) as child:
+        started = time.monotonic()
+        try:
+            with pytest.raises(pytest.fail.Exception, match="no line within 1 s"):
+                line_within(child.stdout, 1)
+        finally:
+            child.kill()
+    assert time.monotonic() - started < 30
+
+
+def test_two_lines_written_at_once_are_both_read():
+    """The first read may take both into its buffer; the second must still find its line."""
+    with subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import sys, time; sys.stdout.write('one\\ntwo\\n'); sys.stdout.flush(); time.sleep(60)",
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    ) as child:
+        try:
+            assert line_within(child.stdout, 30) == "one\n"
+            assert line_within(child.stdout, 30) == "two\n"
+        finally:
+            child.kill()
 
 
 def _gone(group: int) -> bool:

@@ -19,11 +19,31 @@ import textwrap
 import time
 
 import pytest
-from bounded import run_bounded
+from bounded import line_within, run_bounded
 
 ROOT = pathlib.Path(__file__).parent.parent
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Windows has no SIGTERM to send")
+
+
+@pytest.fixture
+def started():
+    """Start a program in a group of its own; whatever of that group is left is ended after the test.
+
+    A stop test signals the program itself, so it cannot go through `run_bounded`. Killing only
+    the program on the way out would leave what it started, such as its suite, running on.
+    """
+    running = []
+
+    def start(command, **kw):
+        running.append(subprocess.Popen(command, start_new_session=True, **kw))
+        return running[-1]
+
+    yield start
+    for each in running:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(each.pid, signal.SIGKILL)
+        each.wait(timeout=30)
 
 
 def _project(tmp_path, test_body):
@@ -84,13 +104,13 @@ def test_a_mutation_run_leaves_no_folder_of_its_own_behind(tmp_path):
 @pytest.mark.parametrize(
     "stop", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP], ids=["a kill", "Ctrl-C", "a closed terminal"]
 )
-def test_a_stopped_mutation_run_still_puts_everything_back(tmp_path, stop):
+def test_a_stopped_mutation_run_still_puts_everything_back(tmp_path, stop, started):
     """Stopped while its suite runs, the run puts the file back and removes its folder.
 
     GitHub cancels a job with SIGINT and then SIGTERM; a closed terminal sends SIGHUP.
     """
     project = _project(tmp_path, HANGS)
-    running = subprocess.Popen(
+    running = started(
         [sys.executable, str(_runner(project, tmp_path))],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -116,7 +136,7 @@ def _ratchet():
     return module
 
 
-def test_a_stopped_quality_check_leaves_no_copy_behind(tmp_path):
+def test_a_stopped_quality_check_leaves_no_copy_behind(tmp_path, started):
     """The check stops as Ctrl-C would stop it, so its temporary copy of main is removed."""
     holder = tmp_path / "holder.py"
     holder.write_text(
@@ -132,8 +152,8 @@ def test_a_stopped_quality_check_leaves_no_copy_behind(tmp_path):
         """),
         encoding="utf-8",
     )
-    running = subprocess.Popen([sys.executable, str(holder)], stdout=subprocess.PIPE, text=True)
-    copy = pathlib.Path(running.stdout.readline().strip())
+    running = started([sys.executable, str(holder)], stdout=subprocess.PIPE, text=True)
+    copy = pathlib.Path(line_within(running.stdout, 30).strip())
     assert copy.is_dir()
     running.send_signal(signal.SIGTERM)
     running.wait(timeout=30)
@@ -187,12 +207,12 @@ def _waits_for(condition, what):
         time.sleep(0.05)
 
 
-def test_a_second_stop_does_not_cut_the_cleanup_short(tmp_path):
+def test_a_second_stop_does_not_cut_the_cleanup_short(tmp_path, started):
     """GitHub cancels a job with SIGINT, then SIGTERM a moment later, while the clean-up runs."""
     project = _project(tmp_path, HANGS)
     began = tmp_path / "cleanup-began"
     script = _runner(project, tmp_path, SLOW_CLEANUP.format(began=str(began)))
-    running = subprocess.Popen([sys.executable, str(script)], text=True)
+    running = started([sys.executable, str(script)], text=True)
     source = project / "src/code.py"
     _waits_for(lambda: "x = 2" in source.read_text(encoding="utf-8"), "the run never switched the rule off")
     time.sleep(1)  # let its suite start
@@ -269,10 +289,10 @@ def test_a_new_run_s_folder_is_locked_before_it_takes_a_run_s_name(tmp_path, mon
         os.close(lock)
 
 
-def test_pytest_s_own_clearing_never_takes_a_running_run_s_lock(tmp_path):
+def test_pytest_s_own_clearing_never_takes_a_running_run_s_lock(tmp_path, started):
     """When it starts, pytest empties the folder given as --basetemp, so the lock must sit beside it."""
     project = _project(tmp_path, HANGS)
-    running = subprocess.Popen([sys.executable, str(_runner(project, tmp_path))], text=True)
+    running = started([sys.executable, str(_runner(project, tmp_path))], text=True)
     source = project / "src/code.py"
     deadline = time.monotonic() + 30
     while "x = 2" not in source.read_text(encoding="utf-8"):
@@ -490,7 +510,7 @@ time.sleep(60)
 """
 
 
-def _quality_check_with_a_child(tmp_path, then=""):
+def _quality_check_with_a_child(tmp_path, started, then=""):
     """A script that runs the quality check's own way of starting a child, on SLOW_CHILD.
 
     `then` is set-up run before the child starts, as lines of Python using `ratchet`.
@@ -509,7 +529,7 @@ def _quality_check_with_a_child(tmp_path, then=""):
         + f"ratchet._run(sys.executable, {str(tmp_path / 'child.py')!r}, {str(tmp_path)!r})\n",
         encoding="utf-8",
     )
-    return subprocess.Popen([sys.executable, str(script)])
+    return started([sys.executable, str(script)])
 
 
 def _stop_child(tmp_path):
@@ -517,9 +537,9 @@ def _stop_child(tmp_path):
         os.kill(int((tmp_path / "child").read_text(encoding="utf-8").split()[0]), signal.SIGKILL)
 
 
-def test_the_quality_check_passes_a_stop_to_its_child_and_waits(tmp_path):
+def test_the_quality_check_passes_a_stop_to_its_child_and_waits(tmp_path, started):
     """Stopped, the quality check must not leave a child still changing files behind it."""
-    running = _quality_check_with_a_child(tmp_path)
+    running = _quality_check_with_a_child(tmp_path, started)
     try:
         _waits_for((tmp_path / "child").exists, "the child never started")
         running.send_signal(signal.SIGTERM)
@@ -530,13 +550,14 @@ def test_the_quality_check_passes_a_stop_to_its_child_and_waits(tmp_path):
         _stop_child(tmp_path)
 
 
-def test_the_quality_check_s_child_hears_a_stop_only_through_it(tmp_path):
+def test_the_quality_check_s_child_hears_a_stop_only_through_it(tmp_path, started):
     """A Ctrl-C in the terminal reaches the whole session; the child must get it once, passed on."""
-    running = _quality_check_with_a_child(tmp_path)
+    running = _quality_check_with_a_child(tmp_path, started)
     try:
         _waits_for(lambda: (tmp_path / "child").exists() and (tmp_path / "child").stat().st_size, "no child")
         _, session = (tmp_path / "child").read_text(encoding="utf-8").split()
-        assert int(session) != os.getsid(0)
+        # Its parent's session, not the test's: the test starts the parent in a session of its own.
+        assert int(session) != os.getsid(running.pid)
     finally:
         running.kill()
         _stop_child(tmp_path)
@@ -563,7 +584,7 @@ time.sleep(2)
 """
 
 
-def test_the_quality_check_tells_its_child_to_stop_exactly_once(tmp_path):
+def test_the_quality_check_tells_its_child_to_stop_exactly_once(tmp_path, started):
     """Its steps run through `uv run`, which passes a Ctrl-C on to the step it started.
 
     Told through the whole group, the step hears the kernel's Ctrl-C and then uv's, and a
@@ -583,7 +604,7 @@ def test_the_quality_check_tells_its_child_to_stop_exactly_once(tmp_path):
         """),
         encoding="utf-8",
     )
-    running = subprocess.Popen([sys.executable, str(script)])
+    running = started([sys.executable, str(script)])
     try:
         _waits_for((tmp_path / "child").exists, "the step never started")
         running.send_signal(signal.SIGTERM)
@@ -612,9 +633,9 @@ ratchet.os.kill = no_such_child
 """
 
 
-def test_a_child_still_going_that_cannot_be_told_is_not_waited_on(tmp_path):
+def test_a_child_still_going_that_cannot_be_told_is_not_waited_on(tmp_path, started):
     """Waiting on a child that never heard the stop would hang the quality check for good."""
-    running = _quality_check_with_a_child(tmp_path, CANNOT_TELL_THE_CHILD)
+    running = _quality_check_with_a_child(tmp_path, started, CANNOT_TELL_THE_CHILD)
     try:
         _waits_for((tmp_path / "child").exists, "the child never started")
         running.send_signal(signal.SIGTERM)
