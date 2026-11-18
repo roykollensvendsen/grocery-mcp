@@ -19,6 +19,7 @@ import textwrap
 import time
 
 import pytest
+from bounded import run_bounded
 
 ROOT = pathlib.Path(__file__).parent.parent
 
@@ -75,9 +76,7 @@ def _runner(project, tmp_path, then=""):
 
 def test_a_mutation_run_leaves_no_folder_of_its_own_behind(tmp_path):
     project = _project(tmp_path, CHECKS_X)
-    done = subprocess.run(
-        [sys.executable, str(_runner(project, tmp_path))], capture_output=True, text=True, check=False
-    )
+    done = run_bounded([sys.executable, str(_runner(project, tmp_path))], capture_output=True, text=True)
     assert "1/1 rules turned off" in done.stdout, done.stdout + done.stderr
     assert not (tmp_path / "mutate-tmp").exists()
 
@@ -314,12 +313,11 @@ def test_one_test_s_stop_handlers_never_reach_the_next(tmp_path):
     conftest = (ROOT / "tests/conftest.py").read_text(encoding="utf-8")
     (tmp_path / "tests/conftest.py").write_text(conftest, encoding="utf-8")
     (tmp_path / "tests/test_stops.py").write_text(CHANGES_A_STOP, encoding="utf-8")
-    done = subprocess.run(
+    done = run_bounded(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--rootdir", str(tmp_path), "tests"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
-        check=False,
     )
     assert done.returncode == 0, done.stdout
 

@@ -82,7 +82,8 @@ def test_the_range_is_read_from_git(tmp_path):
     that reads the repository it happens to be running in is a test whose answer
     depends on how it was started.
     """
-    run = functools.partial(subprocess.run, cwd=tmp_path, check=True, capture_output=True)
+    # A plain git cannot fork a group, so a bare timeout is enough.
+    run = functools.partial(subprocess.run, cwd=tmp_path, check=True, capture_output=True, timeout=60)
     run(["git", "init", "-q", "-b", "main"])
     run(["git", "config", "user.email", "test@example.com"])
     run(["git", "config", "user.name", "A Test"])
@@ -109,7 +110,7 @@ def test_an_empty_message_file_offends_nothing(tmp_path):
 def test_every_commit_means_every_commit_including_the_first():
     """A range excludes its own start, so root..HEAD silently skips the root."""
     root = subprocess.run(
-        ["git", "rev-list", "--max-parents=0", "HEAD"], capture_output=True, text=True, check=True
+        ["git", "rev-list", "--max-parents=0", "HEAD"], capture_output=True, text=True, check=True, timeout=60
     ).stdout.strip()
     every = {sha for sha, _ in imperative.subjects("HEAD")}
     as_a_range = {sha for sha, _ in imperative.subjects(f"{root}..HEAD")}
