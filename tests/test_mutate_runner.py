@@ -13,6 +13,7 @@ pull requests 36 to 38.
 import ast
 import importlib.util
 import pathlib
+import re
 import subprocess
 
 import pytest
@@ -197,3 +198,44 @@ def repair():
 def test_a_rule_in_an_async_helper_repair_calls_is_found(mutate):
     """An async helper repair() calls runs switched off too."""
     assert _inside_repair(ASYNC_REPAIR_HELPER, [], mutate) == ["a repaired file is written in the background"]
+
+
+class _Pipe:
+    """Output that, like a pipe in CI, shows only what has been flushed."""
+
+    def __init__(self):
+        self.held, self.shown = "", ""
+
+    def write(self, text):
+        self.held += text
+        return len(text)
+
+    def flush(self):
+        self.shown, self.held = self.shown + self.held, ""
+
+
+def test_a_mutation_run_names_each_rule_before_it_tests_it(tmp_path, monkeypatch, mutate):
+    """The rule's name must be out of the process, not in its buffer, by the time the suite starts.
+
+    In CI the output is a pipe, which Python holds back until it is full. A run that hung on
+    one rule would leave nothing in the log to say which, so the result line is sent at once too.
+    """
+    _scaffold(tmp_path, monkeypatch, mutate, "# RULE: x is one\nx = 1\n")
+    rows = tmp_path / "scripts/mutations/src/code.py"
+    rows.mkdir(parents=True)
+    (rows / "x-is-one.toml").write_text(
+        "[[rule]]\nname = \"x is one\"\nfile = \"src/code.py\"\nfind = '^x = 1$'\nreplace = 'x = 2'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mutate, "start", lambda: None)
+    pipe, seen = _Pipe(), []
+    monkeypatch.setattr(mutate.sys, "stdout", pipe)
+
+    def suite():
+        seen.append(pipe.shown)
+        return 1, ["test_x_is_one"]
+
+    monkeypatch.setattr(mutate, "run_suite", suite)
+    mutate.check_every_rule(None)
+    assert "testing  x is one\n" in seen[0], seen
+    assert re.search(r"KILLED   x is one: 1 in \d+ s\n", pipe.shown), pipe.shown
