@@ -58,6 +58,9 @@ RECOVERY = ROOT / "scripts/.mutate-recovery.json"
 MUTATE_TMP = pathlib.Path(tempfile.gettempdir()) / (
     "grocery-mcp-mutate-" + hashlib.sha256(str(ROOT).encode()).hexdigest()[:8]
 )
+#: The command that runs the suite. A test may put a quicker program in its place, to
+#: see how a run is ended without waiting for pytest to start in a scratch project.
+SUITE = (sys.executable, "-m", "pytest")
 
 
 def test_name_for(rule: str) -> str:
@@ -407,9 +410,7 @@ def run_suite(timeout: float | None = None) -> tuple[int, list[str]]:
     try:
         with subprocess.Popen(  # noqa: S603 - this interpreter, pytest, and a folder this script made
             [
-                sys.executable,
-                "-m",
-                "pytest",
+                *SUITE,
                 "-q",
                 "--tb=no",
                 "--color=no",
