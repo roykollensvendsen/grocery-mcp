@@ -1,0 +1,5 @@
+[[rule]]
+name = "words that are digits but not plain digits are remembered"
+file = "src/grocery_mcp/answers.py"
+find = '^ {8}if not plain_digits\(words\.strip\(\)\):$'
+replace = 'if not words.strip().isdigit():'

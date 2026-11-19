@@ -8,9 +8,19 @@ every source shares those rules. Kassalapp is the first, in ``sources/``.
 from __future__ import annotations
 
 import datetime as dt  # noqa: TC003 - the dataclasses below read it at run time
+import re
 from dataclasses import dataclass
 from decimal import Decimal  # noqa: TC003 - the dataclasses below read it at run time
 from typing import Protocol
+
+
+def plain_digits(text: str) -> bool:
+    """Whether `text` is only the digits 0 to 9.
+
+    Python's isdigit also says yes to digits such as "²" or Arabic-Indic ones, and
+    int() refuses "²". A number read from outside is read only from these.
+    """
+    return re.fullmatch("[0-9]+", text) is not None
 
 
 @dataclass(frozen=True)

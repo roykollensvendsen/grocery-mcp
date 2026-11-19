@@ -24,7 +24,7 @@ import threading
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
-from grocery_mcp.source import SlowDownError
+from grocery_mcp.source import SlowDownError, plain_digits
 from grocery_mcp.sources.kassalapp import LIMIT_PER_MINUTE
 
 if TYPE_CHECKING:
@@ -97,9 +97,13 @@ class Quota:
             wait = response.headers.get("retry-after", "")
             if response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                 self._count("429s")
-                self._until = now + dt.timedelta(seconds=int(wait)) if wait.isdigit() else _next_minute(now)
+                # RULE: a 429 whose wait is not plain digits waits for the minute to turn
+                asked = plain_digits(wait)
+                self._until = now + dt.timedelta(seconds=int(wait)) if asked else _next_minute(now)
             elif self._number("remaining") == 0:
-                self._until = now + dt.timedelta(seconds=int(wait)) if wait.isdigit() else _next_minute(now)
+                # RULE: a used up minute whose wait is not plain digits waits for it to turn
+                given = plain_digits(wait)
+                self._until = now + dt.timedelta(seconds=int(wait)) if given else _next_minute(now)
             self._count("calls")
             line = {
                 "at": now.isoformat(),
@@ -157,7 +161,8 @@ class Quota:
 
     def _number(self, name: str) -> int | None:
         value = self._headers.get(_HEADER + name, "")
-        return int(value) if value.isdigit() else None
+        # RULE: a quota figure that is not plain digits is read as missing
+        return int(value) if plain_digits(value) else None
 
     def _forget(self, now: dt.datetime) -> None:
         while self._calls and now - self._calls[0] > MINUTE:
@@ -212,7 +217,8 @@ class Quota:
             name = ("ratelimit_" + header.removeprefix(_HEADER).replace("-", "_"))[:32]
             known = header in (_HEADER + "limit", _HEADER + "remaining")
             # The bridge refuses any other name, so one that would not fit is left out.
-            if not known and value.isdigit() and FIGURE_NAME.fullmatch(name):
+            # RULE: an extra quota figure that is not plain digits is left out
+            if not known and plain_digits(value) and FIGURE_NAME.fullmatch(name):
                 figures.setdefault(name, int(value))
         left, limit = full["remaining"], full["limit_per_min"]
         if full["level"] == "backing_off":

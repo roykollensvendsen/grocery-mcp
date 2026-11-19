@@ -1,0 +1,5 @@
+[[rule]]
+name = "a slow down whose wait is not plain digits has no wait"
+file = "src/grocery_mcp/sources/kassalapp.py"
+find = '^ {8}raise SlowDownError\(int\(wait\) if wait\.isascii\(\) and wait\.isdigit\(\) else None\)$'
+replace = 'raise SlowDownError(int(wait) if wait.isdigit() else None)'

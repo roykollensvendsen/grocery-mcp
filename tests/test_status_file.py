@@ -120,3 +120,8 @@ def test_the_status_is_stamped_with_when_it_was_written(fake, tmp_path):
     clock[0] = AT + dt.timedelta(minutes=5)
     quota.cache_hit()
     assert json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))["at"] == clock[0].isoformat()
+
+
+def test_an_extra_quota_figure_that_is_not_plain_digits_is_left_out(fake, tmp_path):
+    fake.extra_headers = {"X-RateLimit-Day": b"\xb2"}  # "²", as test_quota.py's SQUARED
+    assert "ratelimit_day" not in _status(fake, tmp_path)["figures"]

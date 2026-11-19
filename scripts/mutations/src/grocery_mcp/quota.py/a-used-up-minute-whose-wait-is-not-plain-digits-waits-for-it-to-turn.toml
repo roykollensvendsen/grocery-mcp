@@ -1,0 +1,5 @@
+[[rule]]
+name = "a used up minute whose wait is not plain digits waits for it to turn"
+file = "src/grocery_mcp/quota.py"
+find = '^ {16}given = plain_digits\(wait\)$'
+replace = 'given = wait.isdigit()'

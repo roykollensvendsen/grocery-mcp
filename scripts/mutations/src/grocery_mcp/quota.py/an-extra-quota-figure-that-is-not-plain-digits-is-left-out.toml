@@ -1,0 +1,5 @@
+[[rule]]
+name = "an extra quota figure that is not plain digits is left out"
+file = "src/grocery_mcp/quota.py"
+find = '^ {12}if not known and plain_digits\(value\) and FIGURE_NAME'
+replace = 'if not known and value.isdigit() and FIGURE_NAME.fullmatch(name):'

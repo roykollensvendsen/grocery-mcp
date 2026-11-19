@@ -7,6 +7,7 @@ import pytest
 from grocery_mcp.answers import PriceAnswers
 from grocery_mcp.cache import CachedSource
 from grocery_mcp.fake import FAKE_KEY, FakeKassalapp
+from grocery_mcp.source import Product
 from grocery_mcp.sources.kassalapp import KassalappSource
 
 TODAY = dt.date(2026, 11, 14)
@@ -74,3 +75,35 @@ def test_the_choice_is_kept_under_the_first_words(fake):
 def test_the_full_name_alone_is_chosen_without_asking(fake):
     answer = _answers(fake).grocery_cheapest("Fjellmelk  lett 1 liter")
     assert answer["outcome"] == "cheapest"
+
+
+#: Fjellmelk lett's barcode in Arabic-Indic digits: digits to Python, but not the 0 to 9 a barcode is.
+OTHER_DIGITS = "".join(chr(0x0660 + int(d)) for d in "7000000000017")
+
+
+def test_only_plain_digits_are_taken_as_a_barcode(fake):
+    _answers(fake).grocery_price(OTHER_DIGITS)
+    assert _searches(fake) == 1
+
+
+class _FindsOne:
+    """A source whose search finds one product for any words, and notes the words it keeps."""
+
+    def __init__(self, fake):
+        self._real = KassalappSource(fake.client(), lambda: FAKE_KEY)
+        self.kept = []
+
+    def find(self, _words):
+        return [Product("7000000000017", "Fjellmelk lett 1 l")]
+
+    def prices(self, products):
+        return self._real.prices(products)
+
+    def remember(self, words, _product):
+        self.kept.append(words)
+
+
+def test_words_that_are_digits_but_not_plain_digits_are_remembered(fake):
+    source = _FindsOne(fake)
+    PriceAnswers(source, today=lambda: TODAY).grocery_price(OTHER_DIGITS[:3])
+    assert source.kept == [OTHER_DIGITS[:3]]

@@ -69,7 +69,7 @@ class FakeKassalapp:
     #: Set to an HTTP status, such as 503, to answer every call with that error.
     fail_with: int | None = None
     #: Headers the real service might add one day, such as a daily limit.
-    extra_headers: dict[str, str] = field(default_factory=dict)
+    extra_headers: dict[str, str | bytes] = field(default_factory=dict)
     requests: list[httpx.Request] = field(default_factory=list)
 
     def transport(self) -> httpx.MockTransport:
@@ -86,7 +86,12 @@ class FakeKassalapp:
             self.remaining = max(0, self.remaining - 1)
             response.headers["X-RateLimit-Limit"] = str(LIMIT_PER_MINUTE)
             response.headers["X-RateLimit-Remaining"] = str(self.remaining)
-        response.headers.update(self.extra_headers)
+        # An extra header replaces one of the same name. All are rebuilt as raw bytes and read
+        # afresh, as from the network, so a Latin-1 byte such as "²" decodes as it would there.
+        extra = {name.lower(): value for name, value in self.extra_headers.items()}
+        raw = [(k, v) for k, v in response.headers.raw if k.decode().lower() not in extra]
+        raw += [(k.encode(), v if isinstance(v, bytes) else v.encode()) for k, v in extra.items()]
+        response.headers = httpx.Headers(raw)
         return response
 
     def _answer(self, request: httpx.Request) -> httpx.Response:
