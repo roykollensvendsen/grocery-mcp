@@ -12,7 +12,14 @@ import unicodedata
 from typing import TYPE_CHECKING, Any
 
 from grocery_mcp.cache import normalised
-from grocery_mcp.source import KeyRefusedError, NotSetUpError, Product, SearchTooShortError, SlowDownError
+from grocery_mcp.source import (
+    KeyRefusedError,
+    NotSetUpError,
+    Product,
+    SearchTooShortError,
+    SlowDownError,
+    plain_digits,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -108,7 +115,8 @@ class PriceAnswers:
     def _chosen(self, words: str) -> Product | dict[str, Any]:
         """The one product the words mean, or the answer that asks which."""
         given = words.strip()
-        if given.isdigit() and len(given) in BARCODE_DIGITS:
+        # RULE: only plain digits are taken as a barcode
+        if plain_digits(given) and len(given) in BARCODE_DIGITS:
             offered = self._asked[1] if self._asked else []
             return next((p for p in offered if p.ean == given), Product(given, ""))
         found = self._source.find(words)
@@ -160,7 +168,8 @@ class PriceAnswers:
         if self._asked and any(p.ean == chosen.ean for p in self._asked[1]):
             self._source.remember(self._asked[0], chosen)
             self._asked = None
-        if not words.strip().isdigit():
+        # RULE: words that are digits but not plain digits are remembered
+        if not plain_digits(words.strip()):
             self._source.remember(words, chosen)
 
     def _cheapest(self, product: Product, prices: list[ItemPrice]) -> dict[str, Any]:

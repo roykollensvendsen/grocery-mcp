@@ -1,0 +1,5 @@
+[[rule]]
+name = "a quota figure that is not plain digits is read as missing"
+file = "src/grocery_mcp/quota.py"
+find = '^ {8}return int\(value\) if plain_digits\(value\) else None$'
+replace = 'return int(value) if value.isdigit() else None'

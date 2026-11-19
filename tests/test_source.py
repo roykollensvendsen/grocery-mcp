@@ -107,3 +107,12 @@ def test_a_key_file_only_its_owner_can_read_is_not_warned_about(fake, key_file, 
     with caplog.at_level("WARNING", logger="grocery_mcp.sources.kassalapp"):
         KassalappSource(fake.client(), key_file).find("fjellmelk")
     assert caplog.records == []
+
+
+def test_a_slow_down_whose_wait_is_not_plain_digits_has_no_wait(fake, key_file):
+    fake.retry_after = 0
+    fake.retry_after_header = False
+    fake.extra_headers = {"Retry-After": b"\xb2"}  # "²", as test_quota.py's SQUARED
+    with pytest.raises(SlowDownError) as raised:
+        KassalappSource(fake.client(), key_file).prices([LETT])
+    assert raised.value.retry_after is None

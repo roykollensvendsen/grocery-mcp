@@ -182,7 +182,9 @@ def _checked(response: httpx.Response) -> dict[str, Any]:
         raise KeyRefusedError
     if response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
         wait = response.headers.get("Retry-After", "")
-        raise SlowDownError(int(wait) if wait.isdigit() else None)
+        # RULE: a slow down whose wait is not plain digits has no wait
+        # As plain_digits() in source.py; inline, so this import list does not copy answers.py's.
+        raise SlowDownError(int(wait) if wait.isascii() and wait.isdigit() else None)
     response.raise_for_status()
     body: dict[str, Any] = response.json()
     return body

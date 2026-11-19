@@ -1,0 +1,5 @@
+[[rule]]
+name = "only plain digits are taken as a barcode"
+file = "src/grocery_mcp/answers.py"
+find = '^ {8}if plain_digits\(given\) and len\(given\) in BARCODE_DIGITS:$'
+replace = 'if given.isdigit() and len(given) in BARCODE_DIGITS:'

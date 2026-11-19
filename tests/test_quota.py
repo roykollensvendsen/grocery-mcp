@@ -265,3 +265,30 @@ def test_calls_counted_from_several_threads_are_all_counted(fake, tmp_path, cloc
     for thread in threads:
         thread.join()
     assert quota.status()["calls_today"] == 800
+
+
+#: "²" as it comes over the wire, one Latin-1 byte, which httpx reads back as "²".
+#: It is a digit to Python's isdigit, and int() still refuses it.
+SQUARED = b"\xb2"
+
+
+def test_a_429_whose_wait_is_not_plain_digits_waits_for_the_minute_to_turn(fake, quota):
+    fake.retry_after = 0
+    fake.retry_after_header = False
+    fake.extra_headers = {"Retry-After": SQUARED}
+    with pytest.raises(SlowDownError):
+        _source(fake, quota).prices([LETT])
+    assert quota.status()["backing_off_until"] == "2026-11-14T12:01:00+01:00"
+
+
+def test_a_used_up_minute_whose_wait_is_not_plain_digits_waits_for_it_to_turn(fake, quota):
+    fake.remaining = 1
+    fake.extra_headers = {"Retry-After": SQUARED}
+    _source(fake, quota).prices([LETT])
+    assert quota.status()["backing_off_until"] == "2026-11-14T12:01:00+01:00"
+
+
+def test_a_quota_figure_that_is_not_plain_digits_is_read_as_missing(fake, quota):
+    fake.extra_headers = {"X-RateLimit-Remaining": SQUARED}
+    _source(fake, quota).prices([LETT])
+    assert quota.status()["remaining"] is None
