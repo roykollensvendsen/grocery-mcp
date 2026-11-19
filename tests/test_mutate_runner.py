@@ -14,6 +14,7 @@ import ast
 import importlib.util
 import pathlib
 import re
+import subprocess
 import types
 
 import pytest
@@ -112,6 +113,53 @@ def test_a_suite_run_that_is_stopped_ends_its_suite(monkeypatch, mutate):
     with pytest.raises(KeyboardInterrupt):
         mutate.run_suite()
     assert ended == [True]
+
+
+def _overrunning_suite(monkeypatch, mutate):
+    """Stand in for a suite whose first wait runs out of time; every later wait is noted."""
+    waits = []
+
+    class Suite:
+        pid = 0
+
+        def __init__(self, *_, **__):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def communicate(self, timeout=None):
+            waits.append(timeout)
+            if len(waits) == 1:
+                raise subprocess.TimeoutExpired(cmd="pytest", timeout=timeout)
+            return "", ""
+
+    monkeypatch.setattr(mutate.subprocess, "Popen", Suite)
+    return waits
+
+
+def test_an_overrun_whose_group_has_already_ended_is_still_reported_as_an_overrun(monkeypatch, mutate):
+    """Ended on its own since the time ran out, the group cannot be ended again; that is no new error."""
+    _overrunning_suite(monkeypatch, mutate)
+
+    def gone(*_):
+        raise ProcessLookupError
+
+    monkeypatch.setattr(mutate.os, "killpg", gone)
+    with pytest.raises(subprocess.TimeoutExpired):
+        mutate.run_suite(timeout=1)
+
+
+def test_the_wait_after_an_overrun_is_bounded(monkeypatch, mutate):
+    """A program that left the group could hold the output open for ever; the run must not wait on it."""
+    waits = _overrunning_suite(monkeypatch, mutate)
+    monkeypatch.setattr(mutate.os, "killpg", lambda *_: None)
+    with pytest.raises(subprocess.TimeoutExpired):
+        mutate.run_suite(timeout=1)
+    assert waits == [1, mutate.DRAIN]
 
 
 def test_a_coloured_failure_line_is_still_attributed(monkeypatch, mutate):

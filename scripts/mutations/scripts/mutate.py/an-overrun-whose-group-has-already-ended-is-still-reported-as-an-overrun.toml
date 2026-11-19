@@ -1,0 +1,5 @@
+[[rule]]
+name = "an overrun whose group has already ended is still reported as an overrun"
+file = "scripts/mutate.py"
+find = '^ {16}with contextlib\.suppress\(ProcessLookupError\):$'
+replace = 'with contextlib.nullcontext():'
