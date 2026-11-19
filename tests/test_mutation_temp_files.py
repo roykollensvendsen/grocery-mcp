@@ -100,14 +100,14 @@ def test_a_passing_test_keeps_no_temporary_files():
     assert "tmp_path_retention_count = 1" in settings
 
 
-#: A test that starts a program sharing its output, notes its pid, then hangs as long.
+#: A stand-in for the suite: it starts a program that shares its output, notes that
+#: program's pid, then hangs as long. Python starts in a blink, where pytest in a scratch
+#: project takes over a second, so the test's bound can be short.
 STARTS_AND_HANGS = """
 import pathlib, subprocess, sys, time
-
-def test_it_starts_a_program_and_hangs():
-    started = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
-    pathlib.Path({pid_file!r}).write_text(str(started.pid))
-    time.sleep(30)
+started = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+pathlib.Path({pid_file!r}).write_text(str(started.pid))
+time.sleep(30)
 """
 
 
@@ -125,20 +125,20 @@ def _alive(pid):
 def test_a_scratch_run_that_overruns_leaves_nothing_it_started_running(tmp_path, monkeypatch):
     mutate = _mutate(tmp_path, monkeypatch)
     pid_file = tmp_path / "started.pid"
-    (mutate.ROOT / "tests" / "test_hangs.py").write_text(
-        STARTS_AND_HANGS.format(pid_file=str(pid_file)), encoding="utf-8"
-    )
+    suite = tmp_path / "suite.py"
+    suite.write_text(STARTS_AND_HANGS.format(pid_file=str(pid_file)), encoding="utf-8")
+    monkeypatch.setattr(mutate, "SUITE", (sys.executable, str(suite)))
     began = time.monotonic()
     try:
         with pytest.raises(subprocess.TimeoutExpired):
-            mutate.run_suite(timeout=5)
+            mutate.run_suite(timeout=1)
         took = time.monotonic() - began
         pid = int(pid_file.read_text(encoding="utf-8"))
         deadline = time.monotonic() + 5
         while _alive(pid) and time.monotonic() < deadline:
             time.sleep(0.05)
         assert not _alive(pid), "the program the scratch run's test started is still running"
-        assert took < 20, f"the overrun took {took:.0f} s to end, waiting on what its test started"
+        assert took < 10, f"the overrun took {took:.0f} s to end, waiting on what its test started"
     finally:
         with contextlib.suppress(FileNotFoundError, ValueError):
             pid = int(pid_file.read_text(encoding="utf-8"))
