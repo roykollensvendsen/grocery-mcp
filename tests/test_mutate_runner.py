@@ -306,3 +306,24 @@ def test_a_mutation_run_says_how_long_each_rule_took(tmp_path, monkeypatch, caps
     monkeypatch.setattr(mutate, "run_suite", lambda: (1, ["test_x_is_one"]))
     mutate.check_every_rule(None)
     assert "KILLED   x is one: 1 in 42 s\n" in capsys.readouterr().out
+
+
+def test_a_row_that_breaks_the_code_is_reported_as_broken(tmp_path, monkeypatch, capsys, mutate):
+    """A replacement that does not compile fails every test, which would pass for a kill."""
+    _one_rule(tmp_path, monkeypatch, mutate)
+    (tmp_path / "scripts/mutations/src/code.py/x-is-one.toml").write_text(
+        "[[rule]]\nname = \"x is one\"\nfile = \"src/code.py\"\nfind = '^x = 1$'\nreplace = 'x = ('\n",
+        encoding="utf-8",
+    )
+    suites = []
+    monkeypatch.setattr(mutate, "run_suite", lambda: suites.append(1) or (1, ["test_x_is_one"]))
+    summary, written = tmp_path / "step-summary.md", tmp_path / "rule-mutations.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    assert mutate.check_every_rule(written) == 1
+    out = capsys.readouterr().out
+    assert "BROKEN   x is one: the replacement is not valid code" in out
+    assert "KILLED" not in out
+    assert suites == []
+    assert (tmp_path / "src/code.py").read_text(encoding="utf-8") == "# RULE: x is one\nx = 1\n"
+    assert "Broken rows, so nothing was tested: x is one." in written.read_text(encoding="utf-8")
+    assert "Broken rows, so nothing was tested: x is one." in summary.read_text(encoding="utf-8")
