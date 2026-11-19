@@ -14,7 +14,6 @@ import ast
 import importlib.util
 import pathlib
 import re
-import subprocess
 import types
 
 import pytest
@@ -38,11 +37,22 @@ def _suite_says(monkeypatch, mutate, stdout, returncode=1):
     """Stand in for the suite: it answers `stdout`, and the arguments it got are kept."""
     asked = {}
 
-    def run(args, **kwargs):
-        asked.update(args=args, **kwargs)
-        return subprocess.CompletedProcess(args, returncode, stdout, "")
+    class Suite:
+        def __init__(self, args, **kwargs):
+            asked.update(args=args, **kwargs)
+            self.returncode = returncode
 
-    monkeypatch.setattr(mutate.subprocess, "run", run)
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def communicate(self, timeout=None):
+            asked["timeout"] = timeout
+            return stdout, ""
+
+    monkeypatch.setattr(mutate.subprocess, "Popen", Suite)
     return asked
 
 
@@ -74,6 +84,34 @@ def test_a_test_s_scratch_run_of_the_suite_is_bounded_by_the_test(monkeypatch, m
     asked = _suite_says(monkeypatch, mutate, "1 passed\n", returncode=0)
     mutate.run_suite(timeout=300)
     assert asked["timeout"] == 300
+
+
+def test_a_suite_run_that_is_stopped_ends_its_suite(monkeypatch, mutate):
+    """A Ctrl-C while the suite runs must not leave it running while the files are put back."""
+    ended = []
+
+    class Suite:
+        pid = 0
+
+        def __init__(self, *_, **__):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def communicate(self, **_):
+            raise KeyboardInterrupt
+
+        def kill(self):
+            ended.append(True)
+
+    monkeypatch.setattr(mutate.subprocess, "Popen", Suite)
+    with pytest.raises(KeyboardInterrupt):
+        mutate.run_suite()
+    assert ended == [True]
 
 
 def test_a_coloured_failure_line_is_still_attributed(monkeypatch, mutate):

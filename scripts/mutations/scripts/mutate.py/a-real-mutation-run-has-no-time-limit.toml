@@ -1,5 +1,5 @@
 [[rule]]
 name = "a real mutation run has no time limit"
 file = "scripts/mutate.py"
-find = '^ {12}timeout=timeout,$'
-replace = 'timeout=1,'
+find = '^ {16}stdout, _ = suite\.communicate\(timeout=timeout\)$'
+replace = 'stdout, _ = suite.communicate(timeout=1)'
