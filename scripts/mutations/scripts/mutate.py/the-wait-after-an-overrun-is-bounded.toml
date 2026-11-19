@@ -1,0 +1,5 @@
+[[rule]]
+name = "the wait after an overrun is bounded"
+file = "scripts/mutate.py"
+find = '^ {20}suite\.communicate\(timeout=DRAIN\)$'
+replace = 'suite.communicate()'

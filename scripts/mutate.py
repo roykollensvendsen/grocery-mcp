@@ -61,6 +61,8 @@ MUTATE_TMP = pathlib.Path(tempfile.gettempdir()) / (
 #: The command that runs the suite. A test may put a quicker program in its place, to
 #: see how a run is ended without waiting for pytest to start in a scratch project.
 SUITE = (sys.executable, "-m", "pytest")
+#: How long an overrun run waits for the last of its output once its group is ended.
+DRAIN = 5
 
 
 def test_name_for(rule: str) -> str:
@@ -432,9 +434,16 @@ def run_suite(timeout: float | None = None) -> tuple[int, list[str]]:
             except subprocess.TimeoutExpired:
                 # Ending only pytest would leave what its tests started, still holding the
                 # output pipe, so the wait for that pipe would last as long as they do.
-                # RULE: a scratch run that overruns leaves nothing it started running
-                os.killpg(suite.pid, signal.SIGKILL)
-                suite.communicate()
+                # The group may have ended on its own since the time ran out; the overrun is
+                # still what is reported.
+                # RULE: an overrun whose group has already ended is still reported as an overrun
+                with contextlib.suppress(ProcessLookupError):
+                    # RULE: a scratch run that overruns leaves nothing it started running
+                    os.killpg(suite.pid, signal.SIGKILL)
+                # A program that left the group could hold the output open for ever.
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    # RULE: the wait after an overrun is bounded
+                    suite.communicate(timeout=DRAIN)
                 raise
             except BaseException:
                 # Stopped any other way, the run ends its suite before it puts the files back.
