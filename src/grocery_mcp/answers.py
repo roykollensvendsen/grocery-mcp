@@ -215,7 +215,7 @@ class PriceAnswers:
     def _at_chain(
         self, product: Product, at: ItemPrice | None, not_fetched: str | None, asked: str
     ) -> dict[str, Any]:
-        # Roy's decision: these chains are never scraped, so the voice says plainly there is no price.
+        # The owner's decision: these chains are never scraped, so the voice says plainly there is no price.
         # RULE: a chain kassalapp no longer reads is said to have no current prices
         if not_fetched:
             name = at.chain_name if at else not_fetched.capitalize()

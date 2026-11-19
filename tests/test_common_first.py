@@ -1,6 +1,6 @@
 """A bare word like "lettmelk" offers the everyday product first, not a niche line.
 
-Roy asked by voice for "lettmelk" and heard an organic own-brand milk first, sold
+The owner asked by voice for "lettmelk" and heard an organic own-brand milk first, sold
 in one chain, ahead of the milk every chain sells. Kassalapp's search order says
 how well the words match, not how common the product is; the bulk price answer
 says how many chains sell it now.
