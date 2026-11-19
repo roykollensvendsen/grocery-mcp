@@ -405,7 +405,7 @@ def run_suite(timeout: float | None = None) -> tuple[int, list[str]]:
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     temporary, lock = start_run_folder()
     try:
-        r = subprocess.run(  # noqa: S603 - this interpreter, pytest, and a folder this script made
+        with subprocess.Popen(  # noqa: S603 - this interpreter, pytest, and a folder this script made
             [
                 sys.executable,
                 "-m",
@@ -417,14 +417,29 @@ def run_suite(timeout: float | None = None) -> tuple[int, list[str]]:
                 "no:cacheprovider",
                 f"--basetemp={temporary / 'basetemp'}",
             ],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             cwd=ROOT,
-            check=False,
             env=env,
-            # RULE: a real mutation run has no time limit
-            timeout=timeout,
-        )
+            # A bounded run gets a group of its own, so an overrun can end all it started.
+            start_new_session=timeout is not None,
+        ) as suite:
+            try:
+                # RULE: a real mutation run has no time limit
+                stdout, _ = suite.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                # Ending only pytest would leave what its tests started, still holding the
+                # output pipe, so the wait for that pipe would last as long as they do.
+                # RULE: a scratch run that overruns leaves nothing it started running
+                os.killpg(suite.pid, signal.SIGKILL)
+                suite.communicate()
+                raise
+            except BaseException:
+                # Stopped any other way, the run ends its suite before it puts the files back.
+                # RULE: a suite run that is stopped ends its suite
+                suite.kill()
+                raise
     finally:
         # RULE: a suite run leaves no temporary files behind
         _remove(temporary)
@@ -436,7 +451,7 @@ def run_suite(timeout: float | None = None) -> tuple[int, list[str]]:
     # --color=no covers the usual run; stripping covers a configuration that
     # turns colour back on, which would otherwise make every kill unattributable.
     # RULE: a coloured failure line is still attributed
-    plain = ANSI.sub("", r.stdout)
+    plain = ANSI.sub("", stdout)
     m = re.search(r"(\d+) (?:failed|error)", plain)
     failed = re.findall(r"^FAILED (\S+)", plain, re.MULTILINE)
     return int(m.group(1)) if m else 0, [f.split("::")[-1].split("[")[0] for f in failed]

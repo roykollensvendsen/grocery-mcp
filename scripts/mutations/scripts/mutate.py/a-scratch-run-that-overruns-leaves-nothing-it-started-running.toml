@@ -1,0 +1,5 @@
+[[rule]]
+name = "a scratch run that overruns leaves nothing it started running"
+file = "scripts/mutate.py"
+find = '^ {16}os\.killpg\(suite\.pid, signal\.SIGKILL\)$'
+replace = 'suite.kill()'

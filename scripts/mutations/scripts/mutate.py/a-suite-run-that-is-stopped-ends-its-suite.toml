@@ -1,0 +1,5 @@
+[[rule]]
+name = "a suite run that is stopped ends its suite"
+file = "scripts/mutate.py"
+find = '^ {16}suite\.kill\(\)$'
+replace = 'pass'

@@ -7,9 +7,14 @@ now gets a folder of its own, outside the checkout, removed when the run ends;
 whatever a killed run left is swept away at the next start.
 """
 
+import contextlib
 import importlib.util
+import os
 import pathlib
+import signal
+import subprocess
 import sys
+import time
 
 import pytest
 
@@ -93,3 +98,49 @@ def test_a_passing_test_keeps_no_temporary_files():
     settings = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert 'tmp_path_retention_policy = "failed"' in settings
     assert "tmp_path_retention_count = 1" in settings
+
+
+#: A test that starts a program sharing its output, notes its pid, then hangs as long.
+STARTS_AND_HANGS = """
+import pathlib, subprocess, sys, time
+
+def test_it_starts_a_program_and_hangs():
+    started = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    pathlib.Path({pid_file!r}).write_text(str(started.pid))
+    time.sleep(30)
+"""
+
+
+def _alive(pid):
+    """Whether `pid` is still the program the test started, not ended, and not some later reuse."""
+    try:
+        cmdline = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes()
+        state = pathlib.Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except FileNotFoundError:
+        return False
+    return b"time.sleep(30)" in cmdline and state != "Z"
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="reads /proc to see the program has ended")
+def test_a_scratch_run_that_overruns_leaves_nothing_it_started_running(tmp_path, monkeypatch):
+    mutate = _mutate(tmp_path, monkeypatch)
+    pid_file = tmp_path / "started.pid"
+    (mutate.ROOT / "tests" / "test_hangs.py").write_text(
+        STARTS_AND_HANGS.format(pid_file=str(pid_file)), encoding="utf-8"
+    )
+    began = time.monotonic()
+    try:
+        with pytest.raises(subprocess.TimeoutExpired):
+            mutate.run_suite(timeout=5)
+        took = time.monotonic() - began
+        pid = int(pid_file.read_text(encoding="utf-8"))
+        deadline = time.monotonic() + 5
+        while _alive(pid) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not _alive(pid), "the program the scratch run's test started is still running"
+        assert took < 20, f"the overrun took {took:.0f} s to end, waiting on what its test started"
+    finally:
+        with contextlib.suppress(FileNotFoundError, ValueError):
+            pid = int(pid_file.read_text(encoding="utf-8"))
+            if _alive(pid):
+                os.kill(pid, signal.SIGKILL)
