@@ -115,8 +115,11 @@ def test_a_suite_run_that_is_stopped_ends_its_suite(monkeypatch, mutate):
     assert ended == [True]
 
 
-def _overrunning_suite(monkeypatch, mutate):
-    """Stand in for a suite whose first wait runs out of time; every later wait is noted."""
+def _overrunning_suite(monkeypatch, mutate, *, drain_too=False):
+    """Stand in for a suite whose first wait runs out of time; every later wait is noted.
+
+    With `drain_too`, the wait after the group is ended runs out of time as well.
+    """
     waits = []
 
     class Suite:
@@ -133,7 +136,7 @@ def _overrunning_suite(monkeypatch, mutate):
 
         def communicate(self, timeout=None):
             waits.append(timeout)
-            if len(waits) == 1:
+            if len(waits) == 1 or drain_too:
                 raise subprocess.TimeoutExpired(cmd="pytest", timeout=timeout)
             return "", ""
 
@@ -149,17 +152,29 @@ def test_an_overrun_whose_group_has_already_ended_is_still_reported_as_an_overru
         raise ProcessLookupError
 
     monkeypatch.setattr(mutate.os, "killpg", gone)
-    with pytest.raises(subprocess.TimeoutExpired):
+    with pytest.raises(subprocess.TimeoutExpired) as raised:
         mutate.run_suite(timeout=1)
+    assert raised.value.timeout == 1
 
 
 def test_the_wait_after_an_overrun_is_bounded(monkeypatch, mutate):
     """A program that left the group could hold the output open for ever; the run must not wait on it."""
     waits = _overrunning_suite(monkeypatch, mutate)
     monkeypatch.setattr(mutate.os, "killpg", lambda *_: None)
-    with pytest.raises(subprocess.TimeoutExpired):
+    with pytest.raises(subprocess.TimeoutExpired) as raised:
         mutate.run_suite(timeout=1)
     assert waits == [1, mutate.DRAIN]
+    assert raised.value.timeout == 1
+
+
+def test_an_overrun_reports_its_own_time_limit_even_when_the_wait_after_it_runs_out(monkeypatch, mutate):
+    """The short wait after an overrun may run out too; the run's own limit is still what is reported."""
+    waits = _overrunning_suite(monkeypatch, mutate, drain_too=True)
+    monkeypatch.setattr(mutate.os, "killpg", lambda *_: None)
+    with pytest.raises(subprocess.TimeoutExpired) as raised:
+        mutate.run_suite(timeout=1)
+    assert waits == [1, mutate.DRAIN]
+    assert raised.value.timeout == 1
 
 
 def test_a_coloured_failure_line_is_still_attributed(monkeypatch, mutate):
