@@ -26,7 +26,7 @@ def test_a_new_push_cancels_only_a_pull_request_s_older_run():
 def test_every_run_not_for_a_pull_request_is_a_group_of_its_own():
     """GitHub keeps one waiting run per group, so one group for main skipped a commit between two.
 
-    Keyed by its own run id, every run on main, a tag or by hand waits its turn and runs.
+    Keyed by its own run id, every run on main, a tag or by hand starts at once and runs to the end.
     """
     group = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
     assert f"  group: {group}\n" in _concurrency()
