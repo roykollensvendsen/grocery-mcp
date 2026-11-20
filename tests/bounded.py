@@ -49,6 +49,8 @@ def line_within(stream, seconds):
 
     The read runs on a thread of its own, since a pipe's readline cannot be given a limit.
     A child that never answers is then the test's failure, which kills it as it unwinds.
+    After a timeout, never read `stream` again: the thread may still be waiting in its
+    readline, and would take the next line for itself.
     """
     got = queue.Queue()
     threading.Thread(target=lambda: got.put(stream.readline()), daemon=True).start()
